@@ -34,12 +34,12 @@ ENV MY_ENV_V4_EXPECTED_PRICE=180
 ENV MY_ENV_V4_QTY=1000
 ENV MY_ENV_V4_ITEM=Rice
 
-# HF Spaces / Web Interface Port
-EXPOSE 8000
+# HF Spaces / Web Interface Port (default runtime target is typically 7860)
+EXPOSE 7860
 
 # Health check - API must respond for validator ping checks
 HEALTHCHECK --interval=30s --timeout=10s --start-period=10s --retries=3 \
-    CMD curl -fsS http://127.0.0.1:8000/health || exit 1
+    CMD sh -c "curl -fsS http://127.0.0.1:${PORT:-7860}/health || exit 1"
 
 # Default entrypoint - serve API for Space validators
-CMD ["uvicorn", "app:app", "--host", "0.0.0.0", "--port", "8000"]
+CMD ["sh", "-c", "uvicorn app:app --host 0.0.0.0 --port ${PORT:-7860}"]
