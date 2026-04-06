@@ -1,4 +1,15 @@
 <<<<<<< HEAD
+---
+title: Vendor Negotiator Env
+emoji: "🤝"
+colorFrom: blue
+colorTo: green
+sdk: docker
+pinned: false
+tags:
+  - openenv
+---
+
 # Autonomous Vendor Negotiation Environment
 
 Meta PyTorch Hackathon 2026 submission candidate for OpenEnv.
