@@ -1,3 +1,4 @@
+<<<<<<< HEAD
 # Autonomous Vendor Negotiation Environment
 
 Meta PyTorch Hackathon 2026 submission candidate for OpenEnv.
@@ -126,3 +127,17 @@ openenv validate .
 
 ## Notes
 This submission is API-first for deployment and includes an inference script for baseline reproducibility.
+=======
+---
+title: Vendor Negotiator Env
+emoji: 📉
+colorFrom: red
+colorTo: pink
+sdk: docker
+pinned: false
+license: mit
+short_description: AI vendor negotiation for real procurement tasks.
+---
+
+Check out the configuration reference at https://huggingface.co/docs/hub/spaces-config-reference
+>>>>>>> 0bc3969d2a64665e6c57c1dd0fe14145cd2c5bf0
