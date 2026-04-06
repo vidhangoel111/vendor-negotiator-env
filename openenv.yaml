@@ -1,0 +1,204 @@
+name: Vendor Negotiation RL Environment
+version: 1.0.0
+description: |
+  Autonomous vendor negotiation environment where an RL agent selects and negotiates 
+  with suppliers to procure items under budget and quality constraints. Real-world 
+  task inspired by supply chain and procurement automation.
+
+author: Vendor Negotiation Team
+license: MIT
+
+# OpenEnv spec version
+openenv_version: 1.0
+
+# Tasks
+tasks:
+  - id: easy
+    name: Easy Negotiation Task
+    description: |
+      Most vendors are active. Prices are near the expected price. 
+      Agent can find clear optimal vendor through basic ranking.
+    difficulty: easy
+    reward_range: [-1.0, 1.0]
+    max_steps: 24
+    expected_score_range: [0.85, 0.95]
+
+  - id: medium
+    name: Medium Negotiation Task
+    description: |
+      Several vendors deny negotiation. Mix of cheap-slow and fast-expensive options.
+      Agent must balance price, delivery time, and quality. No obvious pick.
+    difficulty: medium
+    reward_range: [-1.0, 1.0]
+    max_steps: 24
+    expected_score_range: [0.65, 0.82]
+
+  - id: hard
+    name: Hard Negotiation Task
+    description: |
+      Most vendors deny. All quotes exceed budget. Quality and cost severely conflict.
+      Agent must find best compromise with no perfect answer.
+    difficulty: hard
+    reward_range: [-1.0, 1.0]
+    max_steps: 24
+    expected_score_range: [0.42, 0.68]
+
+# Observation and Action spaces
+observation_space:
+  type: object
+  required:
+    - vendors
+    - step_number
+    - budget_per_kg
+    - expected_price
+    - quantity_kg
+    - item_name
+    - task_difficulty
+    - cumulative_reward
+    - current_ranked_deals
+  properties:
+    vendors:
+      type: array
+      description: List of vendor states with pricing and metrics
+    step_number:
+      type: integer
+      description: Current episode step
+    budget_per_kg:
+      type: number
+      description: Hidden budget ceiling (₹/kg)
+    expected_price:
+      type: number
+      description: Public reference price (₹/kg)
+    quantity_kg:
+      type: integer
+      description: Order quantity
+    item_name:
+      type: string
+      description: Item being procured
+    task_difficulty:
+      type: string
+      enum: [easy, medium, hard]
+    cumulative_reward:
+      type: number
+      description: Sum of rewards so far
+    current_ranked_deals:
+      type: array
+      description: Ranked list of closed deals
+
+action_space:
+  type: object
+  required:
+    - action_type
+  properties:
+    action_type:
+      type: string
+      enum: [negotiate, accept, skip, finalize]
+      description: Action to take with target vendor
+    vendor_id:
+      type: string
+      nullable: true
+      description: Target vendor (V1-V10 or null for finalize)
+    offer_price:
+      type: number
+      nullable: true
+      description: Counter-offer price in ₹/kg
+    reasoning:
+      type: string
+      nullable: true
+      description: Agent-provided explanation
+
+reward_model:
+  type: object
+  required:
+    - value
+    - event
+  properties:
+    value:
+      type: number
+      minimum: -1.0
+      maximum: 1.0
+    event:
+      type: string
+      description: Reward event label for deterministic auditability
+
+reward_function:
+  type: object
+  description: Reward function details
+  metrics:
+    - name: Deal acceptance within budget
+      reward: +0.18
+      condition: Vendor accepts offer ≤ budget
+    - name: Multi-step negotiation (step 1)
+      reward: +0.16
+      condition: Deal reached on first counter-offer attempt
+    - name: Multi-step negotiation (step 2+)
+      reward: +0.12 to +0.025
+      condition: Deal with negotiation penalty for extra steps
+    - name: Quote settlement
+      reward: +0.06
+      condition: Settled at vendor quote after negotiation exhausted
+    - name: Margin-cap acceptance
+      reward: +0.09
+      condition: Over-budget margin-cap offer accepted
+    - name: Over-budget deal
+      reward: -0.04 to -0.08
+      condition: Deal exceeds budget cutoff
+    - name: Vendor denial
+      reward: -0.09
+      condition: Vendor refuses and is marked denied
+    - name: Efficiency bonus (≤10 steps)
+      reward: +0.12
+      condition: Episode completed within 10 steps
+    - name: Efficiency bonus (≤16 steps)
+      reward: +0.06
+      condition: Episode completed within 16 steps
+    - name: No deal at all
+      reward: -0.30
+      condition: Episode ends with zero closed deals
+
+grading_function:
+  description: Deterministic grader
+  scoring_logic: |
+    1. Identify best closed deal by rank_score.
+    2. Rank score: 0.35×price_fraction + 0.20×delivery_score + 0.25×quality + 0.20×reliability.
+    3. Final score: rank_score × 0.90 + efficiency_bonus (0.12 if ≤10 steps, 0.06 if ≤16).
+    4. Clamp to [0, 1].
+    5. Success threshold: score ≥ 0.40.
+
+environment_variables:
+  - name: API_BASE_URL
+    required: false
+    default: https://router.huggingface.co/v1
+    description: LLM API endpoint
+  - name: MODEL_NAME
+    required: false
+    default: Qwen/Qwen2.5-72B-Instruct
+    description: LLM model identifier
+  - name: HF_TOKEN
+    required: false
+    description: Hugging Face API key (alternative to OPENAI_API_KEY)
+  - name: OPENAI_API_KEY
+    required: false
+    description: OpenAI API key (preferred for OpenAI client)
+  - name: LOCAL_IMAGE_NAME
+    required: false
+    description: Optional local Docker image name for from_docker_image()
+  - name: MY_ENV_V4_TASK
+    required: false
+    default: easy
+    description: Task difficulty (easy, medium, hard)
+  - name: MY_ENV_V4_EXPECTED_PRICE
+    required: false
+    default: "180"
+    description: Expected item price (₹/kg)
+
+docker:
+  image_name: vendor-negotiation-env
+  build_context: .
+  port: 8000
+
+deployment:
+  platform: Hugging Face Spaces
+  default_space_config:
+    app_file: app.py
+    sdk: docker

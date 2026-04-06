@@ -1,0 +1,902 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Vendor Negotiation RL Environment</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link
+      href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&display=swap"
+      rel="stylesheet"
+    />
+    <style>
+      :root {
+        --color-background-primary: #181828;
+        --color-background-secondary: #202038;
+        --color-text-primary: #d4d3e8;
+        --color-text-secondary: #9090b0;
+        --color-border-primary: #2a2a3f;
+        --color-border-secondary: #252540;
+        --color-border-tertiary: #1d1d2f;
+        --color-accent-easy: #1d9e75;
+        --color-accent-medium: #534ab7;
+        --color-accent-hard: #d85a30;
+      }
+
+      * {
+        box-sizing: border-box;
+        margin: 0;
+        padding: 0;
+      }
+
+      body {
+        font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+        font-size: 13px;
+        color: var(--color-text-primary);
+        background: #0c0c1a;
+        min-height: 100vh;
+      }
+
+      .app {
+        padding: 13px;
+        max-width: 1400px;
+        margin: 0 auto;
+      }
+
+      /* Topbar */
+      .topbar {
+        background: #0c0c1a;
+        border-radius: 8px;
+        padding: 10px 15px;
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        margin-bottom: 13px;
+        border: 0.5px solid var(--color-border-secondary);
+      }
+
+      .tt {
+        font-size: 14px;
+        font-weight: 600;
+        color: #dddcff;
+      }
+
+      .ts {
+        font-size: 10px;
+        color: #5a5a85;
+        margin-top: 1px;
+      }
+
+      .tr {
+        display: flex;
+        gap: 7px;
+        align-items: center;
+      }
+
+      .sb {
+        font-size: 10px;
+        color: #5a5a85;
+        background: #181828;
+        padding: 3px 8px;
+        border-radius: 20px;
+      }
+
+      .ep {
+        font-size: 10px;
+        padding: 3px 9px;
+        border-radius: 20px;
+        font-weight: 500;
+        background: #181828;
+        color: #5a5a85;
+        border: 0.5px solid #252540;
+      }
+
+      .ep.live {
+        background: #053320;
+        color: #5dcaa5;
+        border-color: #1d9e75;
+      }
+
+      .ep.run {
+        background: #201000;
+        color: #ef9f27;
+        border-color: #ba7517;
+      }
+
+      .ep.done {
+        background: #1a0840;
+        color: #afa9ec;
+        border-color: #534ab7;
+      }
+
+      .rb2 {
+        padding: 4px 10px;
+        font-size: 11px;
+        background: #181828;
+        color: #9090b0;
+        border: 0.5px solid #252540;
+        border-radius: 6px;
+        cursor: pointer;
+      }
+
+      .rb2:hover {
+        background: #202038;
+      }
+
+      /* Tabs */
+      .tabs {
+        display: flex;
+        gap: 2px;
+        background: var(--color-background-secondary);
+        border-radius: 6px;
+        padding: 3px;
+        margin-bottom: 13px;
+      }
+
+      .tab {
+        flex: 1;
+        padding: 6px 10px;
+        font-size: 12px;
+        font-weight: 500;
+        cursor: pointer;
+        border: none;
+        background: none;
+        color: var(--color-text-secondary);
+        border-radius: 6px;
+        text-align: center;
+      }
+
+      .tab.active {
+        background: var(--color-background-primary);
+        color: #534ab7;
+        border: 0.5px solid #534ab7;
+      }
+
+      .panel {
+        display: none;
+      }
+
+      .panel.active {
+        display: block;
+      }
+
+      /* Cards & Sections */
+      .card {
+        background: var(--color-background-primary);
+        border: 0.5px solid var(--color-border-secondary);
+        border-radius: 8px;
+        padding: 12px;
+        margin-bottom: 10px;
+      }
+
+      .slbl {
+        font-size: 10px;
+        font-weight: 600;
+        letter-spacing: 0.06em;
+        text-transform: uppercase;
+        color: #534ab7;
+        margin-bottom: 8px;
+      }
+
+      /* Task cards */
+      .task-cards {
+        display: grid;
+        grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
+        gap: 8px;
+        margin-bottom: 12px;
+      }
+
+      .tc {
+        border-radius: 8px;
+        padding: 12px;
+        border: 1.5px solid transparent;
+        cursor: pointer;
+        background: var(--color-background-secondary);
+      }
+
+      .tc:hover {
+        filter: brightness(1.1);
+      }
+
+      .tc.sel {
+        border-color: #534ab7;
+      }
+
+      .tc-title {
+        font-size: 13px;
+        font-weight: 600;
+        margin-bottom: 3px;
+        color: #dddcff;
+      }
+
+      .tc-sub {
+        font-size: 10px;
+        margin-bottom: 6px;
+        color: var(--color-text-secondary);
+      }
+
+      .tc-tag {
+        display: inline-block;
+        font-size: 9px;
+        padding: 2px 6px;
+        border-radius: 10px;
+        margin: 2px 2px 2px 0;
+        background: rgba(83, 74, 183, 0.2);
+        color: #afa9ec;
+      }
+
+      /* Forms */
+      .row {
+        display: flex;
+        gap: 8px;
+        flex-wrap: wrap;
+        margin-bottom: 8px;
+      }
+
+      .field {
+        flex: 1;
+        min-width: 110px;
+        display: flex;
+        flex-direction: column;
+        gap: 3px;
+      }
+
+      .field label {
+        font-size: 10px;
+        color: var(--color-text-secondary);
+        font-weight: 500;
+      }
+
+      .field input,
+      .field select {
+        padding: 6px 9px;
+        border: 0.5px solid var(--color-border-secondary);
+        border-radius: 6px;
+        font-size: 12px;
+        background: var(--color-background-primary);
+        color: var(--color-text-primary);
+      }
+
+      .field input:focus,
+      .field select:focus {
+        outline: none;
+        border-color: #7f77dd;
+      }
+
+      /* Buttons */
+      .btn {
+        padding: 7px 13px;
+        border-radius: 6px;
+        border: 0.5px solid var(--color-border-secondary);
+        background: var(--color-background-primary);
+        color: var(--color-text-primary);
+        font-size: 12px;
+        font-weight: 500;
+        cursor: pointer;
+      }
+
+      .btn:hover {
+        background: var(--color-background-secondary);
+      }
+
+      .btn:disabled {
+        opacity: 0.4;
+        cursor: default;
+      }
+
+      .bp {
+        background: #534ab7;
+        color: #eeedfe;
+        border-color: #534ab7;
+      }
+
+      .bp:hover {
+        background: #3c3489;
+      }
+
+      /* Agent panel */
+      .agbox {
+        background: var(--color-background-secondary);
+        border: 0.5px solid var(--color-border-primary);
+        border-radius: 8px;
+        padding: 11px;
+        margin-bottom: 10px;
+      }
+
+      .ag-header {
+        display: flex;
+        align-items: center;
+        gap: 10px;
+        margin-bottom: 8px;
+      }
+
+      .ag-avatar {
+        width: 34px;
+        height: 34px;
+        border-radius: 50%;
+        background: #534ab7;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        color: #eeedfe;
+        font-size: 11px;
+        font-weight: 600;
+        flex-shrink: 0;
+      }
+
+      .ag-bar {
+        height: 7px;
+        border-radius: 4px;
+        background: var(--color-border-tertiary);
+        flex: 1;
+        overflow: hidden;
+      }
+
+      .ag-fill {
+        height: 100%;
+        border-radius: 4px;
+        background: #534ab7;
+      }
+
+      .agstat {
+        display: grid;
+        grid-template-columns: repeat(4, 1fr);
+        gap: 5px;
+        margin-top: 8px;
+      }
+
+      .asc {
+        background: rgba(255, 255, 255, 0.05);
+        border-radius: 5px;
+        padding: 6px;
+        text-align: center;
+      }
+
+      .asl {
+        font-size: 10px;
+        color: #3c3489;
+        margin-bottom: 1px;
+      }
+
+      .asv {
+        font-weight: 600;
+        font-size: 13px;
+        color: #534ab7;
+      }
+
+      /* Status grid */
+      .sg {
+        display: grid;
+        grid-template-columns: repeat(3, 1fr);
+        gap: 7px;
+        margin-bottom: 9px;
+      }
+
+      .sgc {
+        background: #151525;
+        border-radius: 6px;
+        padding: 7px;
+        border: 0.5px solid #202035;
+      }
+
+      .sgl {
+        font-size: 10px;
+        color: #5a5a85;
+        margin-bottom: 2px;
+      }
+
+      .sgv {
+        font-size: 13px;
+        font-weight: 600;
+        color: #dddcff;
+      }
+
+      .sgv.ok {
+        color: #5dcaa5;
+      }
+
+      .sgv.warn {
+        color: #ef9f27;
+      }
+
+      .sgv.bad {
+        color: #f0997b;
+      }
+
+      /* RL action feed */
+      .rl-dark {
+        background: #0c0c1a;
+        border-radius: 8px;
+        padding: 12px;
+        margin-bottom: 10px;
+      }
+
+      .rl-h {
+        font-size: 10px;
+        font-weight: 600;
+        color: #afa9ec;
+        letter-spacing: 0.05em;
+        text-transform: uppercase;
+        margin-bottom: 9px;
+      }
+
+      .af {
+        background: #080810;
+        border-radius: 6px;
+        padding: 8px;
+        font-size: 11px;
+        color: #6060a0;
+        max-height: 200px;
+        overflow-y: auto;
+        font-family: 'Courier New', monospace;
+        line-height: 1.65;
+      }
+
+      .afl {
+        margin-bottom: 1px;
+      }
+
+      .c-ag {
+        color: #afa9ec;
+      }
+
+      .c-vn {
+        color: #9fe1cb;
+      }
+
+      .c-ok {
+        color: #5dcaa5;
+      }
+
+      .c-fl {
+        color: #f0997b;
+      }
+
+      .c-sy {
+        color: #ef9f27;
+      }
+
+      .c-if {
+        color: #85b7eb;
+      }
+
+      /* Vendor table */
+      .vtbl {
+        width: 100%;
+        border-collapse: collapse;
+        font-size: 11px;
+      }
+
+      .vtbl th {
+        font-size: 10px;
+        font-weight: 600;
+        color: var(--color-text-secondary);
+        padding: 5px 6px;
+        border-bottom: 0.5px solid var(--color-border-tertiary);
+        text-align: left;
+        background: var(--color-background-secondary);
+      }
+
+      .vtbl td {
+        padding: 6px 6px;
+        border-bottom: 0.5px solid var(--color-border-tertiary);
+        vertical-align: middle;
+      }
+
+      .vtbl tr:last-child td {
+        border-bottom: none;
+      }
+
+      .pill {
+        font-size: 10px;
+        padding: 2px 7px;
+        border-radius: 20px;
+        font-weight: 500;
+        white-space: nowrap;
+        display: inline-block;
+      }
+
+      .pa {
+        background: #053320;
+        color: #5dcaa5;
+      }
+
+      .pd {
+        background: #3d2315;
+        color: #f0997b;
+      }
+
+      .pn {
+        background: #1a0840;
+        color: #afa9ec;
+      }
+
+      /* Results ranking */
+      .rrow {
+        display: flex;
+        align-items: center;
+        gap: 7px;
+        padding: 8px 10px;
+        border-radius: 6px;
+        margin-bottom: 5px;
+        border: 0.5px solid var(--color-border-tertiary);
+        background: var(--color-background-primary);
+      }
+
+      .rk1 {
+        background: #053320;
+        border: 1.5px solid #1d9e75;
+      }
+
+      .rk2 {
+        background: #1a0840;
+        border: 0.5px solid #afa9ec;
+      }
+
+      .rk3 {
+        background: #201000;
+        border: 0.5px solid #ba7517;
+      }
+
+      .rn {
+        font-size: 14px;
+        font-weight: 600;
+        min-width: 22px;
+        color: var(--color-text-secondary);
+      }
+
+      .rk1 .rn {
+        color: #1d9e75;
+      }
+
+      .rk2 .rn {
+        color: #534ab7;
+      }
+
+      .rk3 .rn {
+        color: #ba7517;
+      }
+
+      .sbar {
+        width: 52px;
+        height: 5px;
+        border-radius: 3px;
+        background: var(--color-border-tertiary);
+        display: inline-block;
+        overflow: hidden;
+      }
+
+      .sf {
+        height: 100%;
+        border-radius: 3px;
+        background: #888780;
+      }
+
+      .rk1 .sf {
+        background: #1d9e75;
+      }
+
+      .rk2 .sf {
+        background: #534ab7;
+      }
+
+      .rk3 .sf {
+        background: #ba7517;
+      }
+
+      /* Recommendations */
+      .recbox {
+        border-radius: 8px;
+        padding: 12px;
+        margin-bottom: 10px;
+      }
+
+      .rb-ok {
+        background: #053320;
+        border: 1.5px solid #1d9e75;
+      }
+
+      .rb-warn {
+        background: #201000;
+        border: 0.5px solid #ba7517;
+      }
+
+      .rb-fail {
+        background: #3d2315;
+        border: 0.5px solid #d85a30;
+      }
+
+      .chip {
+        display: inline-block;
+        font-size: 9px;
+        padding: 2px 7px;
+        border-radius: 20px;
+        margin: 2px;
+        background: #0c0c1a;
+        color: #5a5a85;
+        border: 0.5px solid #252540;
+      }
+
+      /* Human-in-the-loop */
+      .vpick {
+        background: var(--color-background-secondary);
+        border-radius: 8px;
+        padding: 11px;
+        margin-top: 8px;
+        border: 0.5px solid var(--color-border-tertiary);
+      }
+
+      .vprow {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        padding: 7px 10px;
+        border-radius: 6px;
+        border: 0.5px solid var(--color-border-secondary);
+        background: var(--color-background-primary);
+        margin-bottom: 5px;
+        cursor: pointer;
+      }
+
+      .vprow:hover {
+        background: #1a0840;
+        border-color: #afa9ec;
+      }
+
+      .vprow.vbest {
+        background: #053320;
+        border-color: #1d9e75;
+      }
+
+      .cbanner {
+        background: #053320;
+        border: 1.5px solid #1d9e75;
+        border-radius: 8px;
+        padding: 10px 12px;
+        margin-top: 8px;
+        font-size: 12px;
+        color: #5dcaa5;
+      }
+
+      .metrics-grid {
+        display: grid;
+        grid-template-columns: repeat(4, 1fr);
+        gap: 7px;
+        margin-bottom: 10px;
+      }
+
+      .mc {
+        border-radius: 6px;
+        padding: 8px 10px;
+        text-align: center;
+        background: var(--color-background-secondary);
+      }
+
+      .ml {
+        font-size: 10px;
+        font-weight: 500;
+        margin-bottom: 2px;
+        color: var(--color-text-secondary);
+      }
+
+      .mv {
+        font-size: 19px;
+        font-weight: 600;
+        color: #dddcff;
+      }
+
+      .score-banner {
+        display: flex;
+        align-items: center;
+        gap: 10px;
+        padding: 10px 12px;
+        border-radius: 8px;
+        background: var(--color-background-secondary);
+        margin-bottom: 8px;
+      }
+
+      .score-num {
+        font-size: 22px;
+        font-weight: 600;
+      }
+
+      .score-easy {
+        color: #1d9e75;
+      }
+
+      .score-med {
+        color: #534ab7;
+      }
+
+      .score-hard {
+        color: #d85a30;
+      }
+
+      .conflict-box {
+        background: #201000;
+        border: 0.5px solid #ba7517;
+        border-radius: 6px;
+        padding: 8px 10px;
+        font-size: 11px;
+        color: #ef9f27;
+        margin-bottom: 8px;
+      }
+    </style>
+  </head>
+  <body>
+    <div class="app">
+      <div class="topbar">
+        <div>
+          <div class="tt">Vendor Negotiation RL Environment</div>
+          <div class="ts">Autonomous procurement · reward-based negotiation · 3-task difficulty system</div>
+        </div>
+        <div class="tr">
+          <span class="sb" id="sbadge">step 0</span>
+          <span class="ep" id="epill">Idle</span>
+          <button class="rb2" onclick="fullReset()">New run</button>
+        </div>
+      </div>
+
+      <div class="tabs">
+        <button class="tab active" onclick="gTab('env', this)">Task setup</button>
+        <button class="tab" onclick="gTab('agent', this)">Agent loop</button>
+        <button class="tab" onclick="gTab('vendors', this)">Vendor pool</button>
+        <button class="tab" onclick="gTab('results', this)" id="tab-results-btn">Results</button>
+      </div>
+
+      <!-- TASK SETUP TAB -->
+      <div id="tab-env" class="panel active">
+        <div class="agbox" id="agbox" style="display: none">
+          <div class="ag-header">
+            <div class="ag-avatar">AI</div>
+            <div style="flex: 1">
+              <div style="display: flex; align-items: center; gap: 5px; margin-bottom: 4px">
+                <span style="font-size: 11px; font-weight: 600; color: #3c3489">Agent reputation</span>
+                <span class="pill" id="ag-dlt" style="background: #1a0840; color: #afa9ec">—</span>
+              </div>
+              <div style="display: flex; align-items: center; gap: 6px">
+                <div class="ag-bar"><div class="ag-fill" id="ag-bar" style="width: 70%"></div></div>
+                <span style="font-size: 13px; font-weight: 600; color: #534ab7" id="ag-val">0.70</span>
+              </div>
+              <div style="font-size: 10px; color: #534ab7; margin-top: 2px" id="ag-note">Moderate reputation</div>
+            </div>
+          </div>
+          <div class="agstat">
+            <div class="asc"><div class="asl">Deals</div><div class="asv" id="ag-deals">0</div></div>
+            <div class="asc"><div class="asl">Overrides</div><div class="asv" style="color: #d85a30" id="ag-over">0</div></div>
+            <div class="asc"><div class="asl">Runs</div><div class="asv" id="ag-runs">0</div></div>
+            <div class="asc"><div class="asl">Avg reward</div><div class="asv" style="color: #1d9e75" id="ag-avg">—</div></div>
+          </div>
+        </div>
+
+        <div class="slbl">Select task difficulty</div>
+        <div class="task-cards">
+          <div class="tc sel" id="tc-easy" onclick="selectTask('easy')">
+            <div class="tc-title">Easy task</div>
+            <div class="tc-sub">Obvious optimal decision</div>
+            <div><span class="tc-tag">Most vendors active</span><span class="tc-tag">Prices near expected</span></div>
+            <div style="margin-top: 8px; font-size: 10px; color: #1d9e75">Expected score: ~0.85–0.95</div>
+          </div>
+          <div class="tc" id="tc-medium" onclick="selectTask('medium')">
+            <div class="tc-title">Medium task</div>
+            <div class="tc-sub">Trade-offs required</div>
+            <div><span class="tc-tag">Some denials</span><span class="tc-tag">Quality vs cost</span></div>
+            <div style="margin-top: 8px; font-size: 10px; color: #534ab7">Expected score: ~0.65–0.82</div>
+          </div>
+          <div class="tc" id="tc-hard" onclick="selectTask('hard')">
+            <div class="tc-title">Hard task</div>
+            <div class="tc-sub">No perfect answer</div>
+            <div><span class="tc-tag">Most vendors deny</span><span class="tc-tag">All over budget</span></div>
+            <div style="margin-top: 8px; font-size: 10px; color: #d85a30">Expected score: ~0.42–0.68</div>
+          </div>
+        </div>
+
+        <div class="card">
+          <div class="slbl">Procurement parameters</div>
+          <div class="row">
+            <div class="field"><label>Item</label><input id="f-item" value="Rice"/></div>
+            <div class="field"><label>Expected price (₹/kg)</label><input id="f-exp" type="number" value="180" onchange="updateBudget()"/></div>
+            <div class="field"><label>Max budget ₹/kg (hidden)</label><input id="f-bud" type="number" value="216" readonly style="color: #d85a30; font-weight: 600"/></div>
+          </div>
+          <div class="row">
+            <div class="field"><label>Quantity (kg)</label><input id="f-qty" type="number" value="1000"/></div>
+            <div class="field">
+              <label>Agent speed</label>
+              <select id="f-spd">
+                <option value="380">Normal</option>
+                <option value="140">Fast</option>
+                <option value="30">Instant</option>
+              </select>
+            </div>
+          </div>
+          <div style="display: flex; gap: 7px; flex-wrap: wrap">
+            <button class="btn bp" onclick="runAgent()">Run autonomous agent</button>
+            <button class="btn" onclick="pauseResume()" id="pause-btn" disabled>Pause</button>
+          </div>
+        </div>
+      </div>
+
+      <!-- AGENT LOOP TAB -->
+      <div id="tab-agent" class="panel">
+        <div class="rl-dark">
+          <div class="rl-h">RL state — episode snapshot</div>
+          <div class="sg">
+            <div class="sgc"><div class="sgl">Episode step</div><div class="sgv" id="sg-step">—</div></div>
+            <div class="sgc"><div class="sgl">Vendors remaining</div><div class="sgv ok" id="sg-rem">—</div></div>
+            <div class="sgc"><div class="sgl">Deals closed</div><div class="sgv ok" id="sg-deals">—</div></div>
+            <div class="sgc"><div class="sgl">Best price</div><div class="sgv ok" id="sg-bp">—</div></div>
+            <div class="sgc"><div class="sgl">Budget headroom</div><div class="sgv" id="sg-hd">—</div></div>
+            <div class="sgc"><div class="sgl">Cumulative reward</div><div class="sgv" id="sg-cr">0.000</div></div>
+          </div>
+          <div class="rl-h" style="margin-bottom: 5px">Live action feed</div>
+          <div class="af" id="af"></div>
+        </div>
+        <div class="card">
+          <div class="slbl">Policy decision trace</div>
+          <div id="ptrace"><div style="color: var(--color-text-secondary); font-size: 11px">Run the agent to see policy decisions.</div></div>
+        </div>
+      </div>
+
+      <!-- VENDOR POOL TAB -->
+      <div id="tab-vendors" class="panel">
+        <div class="metrics-grid">
+          <div class="mc"><div class="ml">Total</div><div class="mv" id="mv-tot">10</div></div>
+          <div class="mc"><div class="ml">Active</div><div class="mv" id="mv-act">0</div></div>
+          <div class="mc"><div class="ml">Denied</div><div class="mv" id="mv-den">0</div></div>
+          <div class="mc"><div class="ml">Deals</div><div class="mv" id="mv-don">0</div></div>
+        </div>
+        <div class="card" style="overflow-x: auto">
+          <table class="vtbl">
+            <thead>
+              <tr>
+                <th>#</th>
+                <th>Vendor</th>
+                <th>Price ₹</th>
+                <th>Del.</th>
+                <th>Quality</th>
+                <th>Reliability</th>
+                <th>Margin</th>
+                <th>Status</th>
+              </tr>
+            </thead>
+            <tbody id="vtbody"></tbody>
+          </table>
+        </div>
+      </div>
+
+      <!-- RESULTS TAB -->
+      <div id="tab-results" class="panel">
+        <div id="res-ph" class="card"><p style="color: var(--color-text-secondary); font-size: 12px">Run the agent to generate results.</p></div>
+        <div id="res-main" style="display: none">
+          <div id="score-banner"></div>
+          <div id="conflict-area"></div>
+          <div id="rec-area"></div>
+          <div class="card">
+            <div class="slbl">All vendor deals — ranked</div>
+            <div id="ranked"></div>
+          </div>
+          <div id="human-loop" style="display: none">
+            <div class="vpick">
+              <div class="slbl" style="color: #d85a30">Human-in-the-loop override</div>
+              <p style="font-size: 11px; color: var(--color-text-secondary); margin-bottom: 7px">Non-optimal override penalizes agent rating.</p>
+              <div id="pick-list"></div>
+            </div>
+          </div>
+          <div style="display: flex; gap: 7px; margin-top: 10px; flex-wrap: wrap">
+            <button class="btn bp" id="conf-btn" onclick="confirmBest()">Accept agent recommendation</button>
+            <button class="btn" onclick="toggleHuman()">Override (human-in-loop)</button>
+          </div>
+          <div id="conf-area"></div>
+        </div>
+      </div>
+    </div>
+
+    <script>
+      // Always load latest JS during local development.
+      const appScript = document.createElement("script");
+      appScript.src = "/ui/app_v2.js?v=" + Date.now();
+      document.body.appendChild(appScript);
+    </script>
+  </body>
+</html>
