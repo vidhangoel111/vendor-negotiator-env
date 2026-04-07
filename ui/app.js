@@ -50,8 +50,45 @@ let G={
   steps:0,cumRew:0,vendors:[],results:[],trace:[],
   running:false,paused:false,confirmed:false,pauseRes:null,
   stochasticVendors:false,
-  agent:{r:0.70,deals:0,over:0,runs:0,rewHistory:[],hist:[0.70]}
+  agent:{r:0.70,deals:0,over:0,runs:0,rewHistory:[],hist:[0.70],learn:{}}
 };
+
+function learningKey(){return `${G.task}|${G.stochasticVendors?'stochastic':'deterministic'}`;}
+
+function loadLearning(){
+  try{
+    const raw=localStorage.getItem('vendor_rl_learning_v1');
+    if(!raw){G.agent.learn={};return;}
+    G.agent.learn=JSON.parse(raw)||{};
+  }catch(_e){G.agent.learn={};}
+}
+
+function saveLearning(){
+  try{localStorage.setItem('vendor_rl_learning_v1',JSON.stringify(G.agent.learn||{}));}
+  catch(_e){}
+}
+
+function ensureLearningBucket(){
+  const key=learningKey();
+  if(!G.agent.learn[key])G.agent.learn[key]={};
+  const bucket=G.agent.learn[key];
+  for(const v of VB){
+    if(!bucket[v.id])bucket[v.id]={n:0,sum:0,wins:0,losses:0,last:0};
+  }
+  return bucket;
+}
+
+function learnUpdate(vendorId,rewardDelta){
+  const bucket=ensureLearningBucket();
+  const rec=bucket[vendorId];
+  if(!rec)return;
+  rec.n+=1;
+  rec.sum=parseFloat((rec.sum+rewardDelta).toFixed(4));
+  rec.last=rewardDelta;
+  if(rewardDelta>=0)rec.wins+=1;
+  else rec.losses+=1;
+  saveLearning();
+}
 
 function setVendorMode(stochastic){
   G.stochasticVendors=Boolean(stochastic);
@@ -69,6 +106,7 @@ function setVendorMode(stochastic){
     sto.textContent='[ ] Stochastic vendors';
     det.textContent='✓ Deterministic vendors';
   }
+  ensureLearningBucket();
 }
 
 function selectTask(t){
@@ -137,18 +175,27 @@ function agentPolicy(){
   const avail=G.vendors.filter(v=>v.status==='active'&&!v.deal);
   if(!avail.length)return{action:'done',target:null,reason:'All vendors processed'};
   const t=TASKS[G.task];
-  avail.sort((a,b)=>{
-    const ua=0.38*(G.bud/Math.max(a.quote,1))+0.28*a.rel+0.22*a.q+0.12*(6/(a.del+1));
-    const ub=0.38*(G.bud/Math.max(b.quote,1))+0.28*b.rel+0.22*b.q+0.12*(6/(b.del+1));
-    return ub-ua;
-  });
+  const bucket=ensureLearningBucket();
+  const totalN=Math.max(1,Object.values(bucket).reduce((acc,r)=>acc+(r?.n||0),0));
+  const score=(v)=>{
+    const base=0.38*(G.bud/Math.max(v.quote,1))+0.28*v.rel+0.22*v.q+0.12*(6/(v.del+1));
+    const rec=bucket[v.id]||{n:0,sum:0};
+    const mean=rec.n?(rec.sum/rec.n):0;
+    const explore=Math.sqrt(Math.log(totalN+2)/(rec.n+1));
+    const noise=G.stochasticVendors?rng(-0.01,0.01):0;
+    return base+0.22*mean+0.08*explore+noise;
+  };
+  avail.sort((a,b)=>score(b)-score(a));
   const target=avail[0];
+  const rec=bucket[target.id]||{n:0,sum:0,wins:0,losses:0};
+  const mean=rec.n?(rec.sum/rec.n):0;
   const bpRatio=target.quote/G.bud;
   let reason='';
   if(bpRatio<=0.92)reason=`Quote ₹${target.quote} well within budget — standard negotiation`;
   else if(bpRatio<=1.0)reason=`Quote ₹${target.quote} near budget limit — firm counter-offer strategy`;
   else reason=`Quote ₹${target.quote} exceeds budget ₹${G.bud} — margin-cap required`;
   if(t.conflictSignals>0&&target.q<0.75&&target.rel<0.75)reason+=' [quality-cost conflict detected]';
+  reason+=` [learned mean=${mean.toFixed(3)} n=${rec.n}]`;
   return{action:'negotiate',target,reason};
 }
 
@@ -205,6 +252,7 @@ async function negotiateV(v){
     v.accepted=v.quote;v.deal=true;v.status='active';
     bumpVendor(v,true);bumpAgent(0.03);G.agent.deals++;
     addRew(0.22,'immediate accept — quote ≤ expected');
+    learnUpdate(v.id,0.22);
     addAF('c-ok',`DEAL ${v.id} ₹${v.quote} — immediate close`);
     addTrace(v,'immediate_accept','Quote ≤ expected price',calcScore(v));
     return;
@@ -230,6 +278,7 @@ async function negotiateV(v){
         bumpVendor(v,true);bumpAgent(0.025);G.agent.deals++;
         const rw=parseFloat((0.16-i*0.025+agBonus*0.04+t.coopBonus*0.3).toFixed(3));
         addRew(rw,'deal at step '+(i+1));
+        learnUpdate(v.id,rw);
         addAF('c-ok',`DEAL ${v.id} ₹${offer} step ${i+1}`);
         addTrace(v,'negotiated','Offer ≥ stochastic floor ₹'+nfloor,calcScore(v));
         renderVendors();updMetrics();return;
@@ -240,6 +289,7 @@ async function negotiateV(v){
     v.accepted=v.quote;v.deal=true;v.status='active';
     bumpVendor(v,true);bumpAgent(0.01);G.agent.deals++;
     addRew(0.06,'settled at quote');
+    learnUpdate(v.id,0.06);
     addAF('c-ok',`DEAL ${v.id} settled ₹${v.quote}`);
     addTrace(v,'quote_settle','Negotiation exhausted → quote price',calcScore(v));
   } else {
@@ -249,6 +299,7 @@ async function negotiateV(v){
     if(maxCap>G.bud){
       v.status='denied';
       addRew(-0.09,'unaffordable — even margin cap over budget');
+      learnUpdate(v.id,-0.09);
       addAF('c-fl',`SKIP ${v.id} margin-cap ₹${maxCap} > budget`);
       addTrace(v,'skip','Cap > budget',null);
       renderVendors();updMetrics();return;
@@ -263,12 +314,14 @@ async function negotiateV(v){
       v.accepted=maxCap;v.deal=true;v.status='active';
       bumpVendor(v,true);bumpAgent(0.015);G.agent.deals++;
       addRew(0.09,'margin-cap accepted');
+      learnUpdate(v.id,0.09);
       addAF('c-ok',`DEAL ${v.id} ₹${maxCap} margin-cap`);
       addTrace(v,'margincap',`Coop prob ${coopP.toFixed(2)} passed`,calcScore(v));
     } else {
       v.status='denied';
       bumpVendor(v,false);bumpAgent(-0.02);
       addRew(-0.07,'margin-cap rejected');
+      learnUpdate(v.id,-0.07);
       addAF('c-fl',`FAIL ${v.id} rejected ₹${maxCap} (p=${coopP.toFixed(2)})`);
       addTrace(v,'rejection','Stochastic rejection',null);
     }
@@ -283,6 +336,9 @@ async function runEpisode(){
   updTopbar();
   addAF('c-if',`=== Episode start · task:${G.task} · budget ₹${G.bud} · vendors:${G.vendors.filter(v=>v.status!=='denied').length} active ===`);
   addAF('c-if',`=== Vendor mode: ${G.stochasticVendors?'stochastic':'deterministic'} ===`);
+  const bucket=ensureLearningBucket();
+  const seen=Object.values(bucket).reduce((a,r)=>a+(r?.n||0),0);
+  addAF('c-if',`=== Learning memory samples: ${seen} ===`);
   while(true){
     if(G.paused)await new Promise(r=>{G.pauseRes=r;});
     const pol=agentPolicy();
@@ -310,6 +366,7 @@ async function runAgent(){
   G.spd=parseInt(document.getElementById('f-spd').value)||380;
   G.steps=0;G.cumRew=0;G.results=[];G.trace=[];G.confirmed=false;G.paused=false;
   G.agent.runs++;G.agent.deals=0;G.agent.over=0;
+  ensureLearningBucket();
   G.vendors=mkVendors();
   document.getElementById('af').innerHTML='';
   document.getElementById('ptrace').innerHTML='';
@@ -587,6 +644,7 @@ function fullReset(){
   updMetrics();updSG();
 }
 
+loadLearning();
 setVendorMode(false);
 selectTask('easy');renderScenarioBox();updAgentPanel();updMetrics();updSG();
 
