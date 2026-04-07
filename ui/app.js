@@ -75,7 +75,8 @@ function selectTask(t){
   G.task=t;
   ['easy','medium','hard'].forEach(k=>{
     const el=document.getElementById('tc-'+k);
-    el.className='tc tc-'+k+(k===t?' sel':'');
+    if(!el)return;
+    el.className='tc tc-'+(k==='medium'?'med':k)+(k===t?' sel':'');
   });
   updateBudget();
   renderScenarioBox();
