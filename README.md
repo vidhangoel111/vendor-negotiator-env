@@ -1,14 +1,10 @@
 ﻿---
-title: Vendor Negotiator Env
-sdk: docker
-emoji: 🤝
+title: Vendor Negotiator
+emoji: 🤖
 colorFrom: blue
 colorTo: green
 sdk: docker
 app_port: 7860
-pinned: false
-tags:
-  - openenv
 short_description: AI vendor negotiation for real procurement tasks.
 ---
 
