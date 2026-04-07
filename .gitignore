@@ -2,3 +2,13 @@
 __pycache__/
 *.pyc
 .env
+.env
+.env.*
+*.key
+*.pem
+secrets*
+token*
+hf_token*
+openai_key*
+__pycache__/
+*.pyc
