@@ -24,6 +24,7 @@ import textwrap
 from typing import Any, Dict, List, Optional
 
 from my_env_v4 import MyEnvV4Action, MyEnvV4Env, VendorNegotiationObservation
+from rl_policy import QLearningPolicy
 
 # ── Config from env ──────────────────────────────────────────────────────────
 
@@ -37,6 +38,8 @@ TEMPERATURE = float(os.getenv("MY_ENV_V4_TEMPERATURE", "0.3"))
 STOCHASTIC_VENDORS = os.getenv("MY_ENV_V4_STOCHASTIC_VENDORS", "true").strip().lower() in ("1", "true", "yes", "on")
 MAX_TOKENS = 512
 SUCCESS_SCORE_THRESHOLD = 0.40
+RL_POLICY_PATH = os.getenv("RL_POLICY_PATH", "q_policy.json")
+RL_TRAIN_EPISODES = int(os.getenv("RL_TRAIN_EPISODES", "0"))
 
 # ── System prompt for LLM agent ──────────────────────────────────────────────
 
@@ -169,8 +172,11 @@ def heuristic_action(obs: VendorNegotiationObservation) -> MyEnvV4Action:
 
 # ── LLM agent ────────────────────────────────────────────────────────────────
 
-def get_agent_action(client: Any, obs: VendorNegotiationObservation, step: int) -> MyEnvV4Action:
+def get_agent_action(client: Any, obs: VendorNegotiationObservation, step: int, policy: Optional[QLearningPolicy]) -> MyEnvV4Action:
     if client is None:
+        if policy is not None:
+            action, _s, _a = policy.select_action(obs, training=True)
+            return action
         return heuristic_action(obs)
 
     prompt = build_user_prompt(obs, step)
@@ -187,14 +193,14 @@ def get_agent_action(client: Any, obs: VendorNegotiationObservation, step: int) 
         )
         text = (response.choices[0].message.content or "").strip()
         parsed = parse_action(text)
-        return parsed if parsed is not None else heuristic_action(obs)
+        return parsed if parsed is not None else (policy.select_action(obs, training=True)[0] if policy else heuristic_action(obs))
     except Exception:
-        return heuristic_action(obs)
+        return policy.select_action(obs, training=True)[0] if policy else heuristic_action(obs)
 
 
 # ── Episode runner ────────────────────────────────────────────────────────────
 
-async def run_episode(task: str, client: Any) -> None:
+async def run_episode(task: str, client: Any, policy: Optional[QLearningPolicy] = None, training: bool = True) -> None:
     env = MyEnvV4Env(task=task, stochastic_vendors=STOCHASTIC_VENDORS)
     rewards: List[float] = []
     steps_taken = 0
@@ -209,7 +215,11 @@ async def run_episode(task: str, client: Any) -> None:
         for step in range(1, MAX_STEPS + 1):
             # Auto-finalize if no active vendors
             active_count = sum(1 for v in obs.vendors if v.status == "active")
-            action = get_agent_action(client, obs, step)
+            if client is None and policy is not None:
+                action, s, a = policy.select_action(obs, training=training)
+            else:
+                action = get_agent_action(client, obs, step, policy=None)
+                s, a = "", ""
 
             if active_count == 0 and action.action_type != "finalize":
                 action = MyEnvV4Action(
@@ -219,11 +229,14 @@ async def run_episode(task: str, client: Any) -> None:
                 )
 
             result = await env.step(action)
-            obs = result.observation
+            obs_next = result.observation
 
             reward_val = float(result.reward.value)
             done = result.done
             error = result.info.get("last_action_error")
+            if client is None and policy is not None and s:
+                policy.update(s, a, reward_val, obs_next, done)
+            obs = obs_next
 
             rewards.append(reward_val)
             steps_taken = step
@@ -274,13 +287,26 @@ async def main() -> None:
         except Exception:
             client = None
 
+    policy: Optional[QLearningPolicy] = None
+    if client is None:
+        policy = QLearningPolicy.load(RL_POLICY_PATH)
+        if RL_TRAIN_EPISODES > 0:
+            for _ in range(RL_TRAIN_EPISODES):
+                await run_episode(task=TASK_NAME if TASK_NAME != "all" else "medium", client=None, policy=policy, training=True)
+                policy.decay()
+            policy.save(RL_POLICY_PATH)
+
     # If TASK_NAME is "all", run all three tasks
     tasks = ["easy", "medium", "hard"] if TASK_NAME == "all" else [TASK_NAME]
 
     for task in tasks:
-        await run_episode(task=task, client=client)
+        await run_episode(task=task, client=client, policy=policy, training=(client is None))
+        if policy is not None:
+            policy.decay()
         if len(tasks) > 1:
             print()  # blank line between tasks
+    if policy is not None:
+        policy.save(RL_POLICY_PATH)
 
 
 if __name__ == "__main__":

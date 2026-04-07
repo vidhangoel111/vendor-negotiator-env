@@ -16,7 +16,9 @@ short_description: AI vendor negotiation for real procurement tasks.
 
 An OpenEnv-compatible Reinforcement Learning environment where an AI agent autonomously negotiates with 10 ranked vendors to secure the best procurement deal under budget, quality, and delivery constraints. Real-world supply chain problem — when primary vendors go offline, the agent must find a replacement before backup stock runs out.
 
-This is an **RL environment** (not an agent). Bring your own agent and train it here.
+This is an **RL environment** with two policy modes for testing:
+- `heuristic` baseline
+- `qlearn` reward-driven policy (tabular Q-learning in Python)
 
 ## Live Demo
 
@@ -90,12 +92,15 @@ This is an **RL environment** (not an agent). Bring your own agent and train it 
 
 ```
 vendor-negotiator-env/
-├── ui/                  # Navy+Gold dashboard UI
-│   └── index_v2.html
+├── ui/                  # Browser simulation UI (visualization only)
+│   ├── index.html
+│   ├── style.css
+│   └── app.js
 ├── my_env_v4.py         # Core RL environment (reset/step/state)
 ├── app.py               # FastAPI server — all API routes
-├── inference.py         # Official test runner ([START]/[STEP]/[END] logs)
-├── grader.py            # Auto scorer for all 3 tasks
+├── rl_policy.py         # Tabular Q-learning policy (reward/penalty learning)
+├── inference.py         # Episode runner ([START]/[STEP]/[END] logs)
+├── grader.py            # Train/evaluate heuristic or qlearn policy
 ├── openenv.yaml         # OpenEnv spec documentation
 ├── Dockerfile           # Container definition (port 7860)
 └── requirements.txt     # Python dependencies
@@ -115,14 +120,30 @@ pip install -r requirements.txt
 # Start the server (visit http://localhost:7860/ui)
 uvicorn app:app --host 0.0.0.0 --port 7860
 
-# Run the grader (tests all 3 tasks, no LLM needed)
-python grader.py
+# Run grader with Q-learning training + evaluation (default)
+python grader.py --agent qlearn --train-episodes 80 --runs 5
+
+# Heuristic baseline (no learning)
+python grader.py --agent heuristic --runs 5
 
 # Run inference (official [START]/[STEP]/[END] format)
 python inference.py
 
 # Run inference for a specific task
 set MY_ENV_V4_TASK=hard && python inference.py
+```
+
+## RL Training Notes
+
+- Learning happens in Python via `rl_policy.py` from reward/penalty signals.
+- Q-table is saved to `q_policy.json` (configurable with `--policy-path`).
+- Use stochastic vendor mode for broader exploration:
+```bash
+python grader.py --agent qlearn --train-episodes 120 --runs 8
+```
+- Use deterministic mode for reproducible regression checks:
+```bash
+python grader.py --agent qlearn --deterministic-vendors --train-episodes 40 --runs 5
 ```
 
 ## Docker

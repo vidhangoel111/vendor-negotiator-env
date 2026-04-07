@@ -1,4 +1,4 @@
-from __future__ import annotations
+﻿from __future__ import annotations
 
 import os
 import random
@@ -179,7 +179,6 @@ class MyEnvV4Env:
             reward_event = "finalize"
             self._done = True
         elif action.action_type == "negotiate":
-            print("STEP ACTION:", action)
             reward, reward_event, err = await self._do_negotiate(action)
             if err:
                 self._last_action_error = err
@@ -241,10 +240,7 @@ class MyEnvV4Env:
     async def close(self) -> None:
         self._done = True
 
-        print("🔥 NEGOTIATE HIT:", action.vendor_id, action.offer_price)
-
     async def _do_negotiate(self, action: MyEnvV4Action):
-        print("🔥 NEGOTIATE HIT:", action.vendor_id, action.offer_price)
         vendor = self._find_vendor(action.vendor_id)
         if vendor is None:
             return -0.02, "invalid_vendor", f"Vendor {action.vendor_id} not found"
@@ -255,10 +251,6 @@ class MyEnvV4Env:
 
         vendor.status = "negotiating"
         vendor.negotiation_attempts += 1
-
-        extra_penalty = 0.0
-        if vendor.negotiation_attempts > 5:
-            extra_penalty = -0.02
         self._last_vendor_id = vendor.vendor_id
 
         offer = action.offer_price if action.offer_price is not None else self.expected_price
@@ -287,7 +279,7 @@ class MyEnvV4Env:
         vendor.quote_price = round(vendor.quote_price * shrink, 2)
         vendor.status = "active"
         self._last_action_result = "counter"
-        return -0.01 + extra_penalty, "counter_offer", None
+        return -0.01, "counter_offer", None
 
     def _do_accept(self, action: MyEnvV4Action):
         vendor = self._find_vendor(action.vendor_id)
@@ -369,10 +361,10 @@ class MyEnvV4Env:
                 bias = self._cfg["price_bias"] * self._rng.uniform(0.5, 1.0)
                 deny_random_bonus = 0.12 if self._rng.random() < 0.15 else 0.0
             else:
-                # Deterministic profile: no random quote fluctuation, stable bias.
                 noise = 0.0
                 bias = self._cfg["price_bias"] * 0.75
                 deny_random_bonus = 0.0
+
             quote = round(cat["base_price"] * (1 + noise + bias), 2)
 
             deny_p = min(
