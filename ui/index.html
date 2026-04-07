@@ -3,102 +3,171 @@
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>Vendor Negotiation Studio</title>
+    <title>Order Process RL Environment</title>
     <link rel="preconnect" href="https://fonts.googleapis.com" />
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
-    <link
-      href="https://fonts.googleapis.com/css2?family=Manrope:wght@400;500;600;700;800&family=Space+Grotesk:wght@500;600;700&display=swap"
-      rel="stylesheet"
-    />
+    <link href="https://fonts.googleapis.com/css2?family=Manrope:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet" />
     <link rel="stylesheet" href="/ui/style.css" />
   </head>
   <body>
-    <div class="bg-orb orb-a"></div>
-    <div class="bg-orb orb-b"></div>
-    <div class="bg-grid"></div>
+<div class="app">
+<div class="topbar">
+  <div><div class="tt">Order Process RL Environment</div><div class="ts">Autonomous procurement · 3-task difficulty system · state → action → reward</div></div>
+  <div class="tr">
+    <span class="sb" id="sbadge">step 0</span>
+    <span class="ep" id="epill">Idle</span>
+    <button class="rb2" onclick="fullReset()">New run</button>
+  </div>
+</div>
 
-    <main class="app-shell">
-      <header class="hero card">
-        <div>
-          <p class="eyebrow">Autonomous Procurement Sandbox</p>
-          <h1>Vendor Negotiation Studio</h1>
-          <p class="subhead">
-            Interactive browser UI for the same RL-style negotiation logic from your Python environment.
-          </p>
+<div class="tabs">
+  <button class="tab active" onclick="gTab('env',this)">Task setup</button>
+  <button class="tab" onclick="gTab('agent',this)">Agent loop</button>
+  <button class="tab" onclick="gTab('vendors',this)">Vendor pool</button>
+  <button class="tab" onclick="gTab('results',this)" id="tab-results-btn">Results</button>
+</div>
+
+<div id="tab-env" class="panel active">
+
+  <div class="agbox" id="agbox" style="display:none">
+    <div style="display:flex;align-items:center;gap:10px;margin-bottom:8px">
+      <div style="width:34px;height:34px;border-radius:50%;background:#534AB7;display:flex;align-items:center;justify-content:center;color:#EEEDFE;font-size:11px;font-weight:500;flex-shrink:0">AI</div>
+      <div style="flex:1">
+        <div style="display:flex;align-items:center;gap:5px;margin-bottom:4px">
+          <span style="font-size:11px;font-weight:500;color:#3C3489">Agent reputation</span>
+          <span class="dlt dnu" id="ag-dlt">—</span>
         </div>
-        <div class="hero-stats">
-          <div class="stat">
-            <span>Task</span>
-            <strong id="taskBadge">easy</strong>
-          </div>
-          <div class="stat">
-            <span>Step</span>
-            <strong id="stepBadge">0 / 24</strong>
-          </div>
-          <div class="stat">
-            <span>Final Score</span>
-            <strong id="scoreBadge">0.000</strong>
-          </div>
+        <div style="display:flex;align-items:center;gap:6px">
+          <div class="agbar"><div class="agfill" id="ag-bar" style="width:70%"></div></div>
+          <span style="font-size:13px;font-weight:500;color:#534AB7" id="ag-val">0.70</span>
         </div>
-      </header>
+        <div style="font-size:10px;color:#534AB7;margin-top:2px" id="ag-note">Moderate — standard vendor cooperation</div>
+      </div>
+      <div id="ag-dots" style="display:flex;gap:2px;flex-wrap:wrap;max-width:65px"></div>
+    </div>
+    <div class="agstat">
+      <div class="asc"><div class="asl">Deals</div><div class="asv" id="ag-deals">0</div></div>
+      <div class="asc"><div class="asl">Overrides</div><div class="asv" style="color:#D85A30" id="ag-over">0</div></div>
+      <div class="asc"><div class="asl">Runs</div><div class="asv" id="ag-runs">0</div></div>
+      <div class="asc"><div class="asl">Avg reward</div><div class="asv" style="color:#1D9E75" id="ag-avg">—</div></div>
+    </div>
+  </div>
 
-      <section class="control-strip card">
-        <div class="control-group">
-          <label for="taskSelect">Difficulty</label>
-          <select id="taskSelect">
-            <option value="easy">easy</option>
-            <option value="medium">medium</option>
-            <option value="hard">hard</option>
-          </select>
-        </div>
+  <div class="slbl">Select task difficulty</div>
+  <div class="task-cards">
+    <div class="tc tc-easy sel" id="tc-easy" onclick="selectTask('easy')">
+      <div class="tc-title">Easy task</div>
+      <div class="tc-sub">Obvious optimal decision</div>
+      <div><span class="tc-tag tag-e">Most vendors active</span><span class="tc-tag tag-e">Prices near expected</span><span class="tc-tag tag-e">Clear winner</span></div>
+      <div style="margin-top:8px;font-size:10px;color:#0F6E56">Expected score: ~0.85–0.95</div>
+    </div>
+    <div class="tc tc-med" id="tc-med" onclick="selectTask('medium')">
+      <div class="tc-title">Medium task</div>
+      <div class="tc-sub">Trade-offs required</div>
+      <div><span class="tc-tag tag-m">Some denials</span><span class="tc-tag tag-m">Cheap-but-slow vs fast-but-costly</span><span class="tc-tag tag-m">No obvious pick</span></div>
+      <div style="margin-top:8px;font-size:10px;color:#534AB7">Expected score: ~0.65–0.82</div>
+    </div>
+    <div class="tc tc-hard" id="tc-hard" onclick="selectTask('hard')">
+      <div class="tc-title">Hard task</div>
+      <div class="tc-sub">No perfect answer</div>
+      <div><span class="tc-tag tag-h">Most deny</span><span class="tc-tag tag-h">All prices above budget</span><span class="tc-tag tag-h">Quality vs cost conflict</span></div>
+      <div style="margin-top:8px;font-size:10px;color:#993C1D">Expected score: ~0.42–0.68</div>
+    </div>
+  </div>
 
-        <div class="control-group">
-          <label for="vendorSelect">Vendor</label>
-          <select id="vendorSelect"></select>
-        </div>
+  <div id="scenario-box"></div>
 
-        <div class="control-group">
-          <label for="offerInput">Offer (Rs/kg)</label>
-          <input id="offerInput" type="number" step="0.01" placeholder="180.00" />
-        </div>
+  <div class="card">
+    <div class="slbl">Procurement parameters</div>
+    <div class="row">
+      <div class="field"><label>Item</label><input id="f-item" value="Rice"></div>
+      <div class="field"><label>Expected price (₹/kg)</label><input id="f-exp" type="number" value="180" onchange="updateBudget()"></div>
+      <div class="field"><label>Max budget ₹/kg (hidden)</label><input id="f-bud" type="number" value="216" readonly style="color:#D85A30;font-weight:500"></div>
+    </div>
+    <div class="row">
+      <div class="field"><label>Quantity (kg)</label><input id="f-qty" type="number" value="1000"></div>
+      <div class="field">
+        <label>Agent speed</label>
+        <select id="f-spd">
+          <option value="380">Normal</option>
+          <option value="140">Fast</option>
+          <option value="30">Instant</option>
+        </select>
+      </div>
+    </div>
+    <div style="display:flex;gap:7px;flex-wrap:wrap">
+      <button class="btn bp" onclick="runAgent()">Run autonomous agent</button>
+      <button class="btn bsm" onclick="pauseResume()" id="pause-btn" disabled>Pause</button>
+    </div>
+  </div>
+</div>
 
-        <div class="button-row">
-          <button id="resetBtn" class="btn btn-ghost">New Episode</button>
-          <button id="autoStepBtn" class="btn btn-secondary">Heuristic Step</button>
-          <button id="autoRunBtn" class="btn btn-secondary">Auto to End</button>
-        </div>
+<div id="tab-agent" class="panel">
+  <div class="rl-dark">
+    <div class="rl-h">RL state — episode snapshot</div>
+    <div class="sg">
+      <div class="sgc"><div class="sgl">Episode step</div><div class="sgv" id="sg-step">—</div></div>
+      <div class="sgc"><div class="sgl">Vendors remaining</div><div class="sgv ok" id="sg-rem">—</div></div>
+      <div class="sgc"><div class="sgl">Deals closed</div><div class="sgv ok" id="sg-deals">—</div></div>
+      <div class="sgc"><div class="sgl">Best price</div><div class="sgv ok" id="sg-bp">—</div></div>
+      <div class="sgc"><div class="sgl">Budget headroom</div><div class="sgv" id="sg-hd">—</div></div>
+      <div class="sgc"><div class="sgl">Cumulative reward</div><div class="sgv" id="sg-cr">0.000</div></div>
+    </div>
+    <div class="rl-h" style="margin-bottom:5px">Live action feed</div>
+    <div class="af" id="af"></div>
+  </div>
+  <div class="card">
+    <div class="slbl">Policy decision trace</div>
+    <div class="ptrace" id="ptrace"><div style="color:var(--color-text-secondary);font-size:11px">Run the agent to see policy decisions.</div></div>
+  </div>
+</div>
 
-        <div class="button-row">
-          <button id="negotiateBtn" class="btn btn-primary">Negotiate</button>
-          <button id="acceptBtn" class="btn btn-primary">Accept</button>
-          <button id="skipBtn" class="btn btn-primary">Skip</button>
-          <button id="finalizeBtn" class="btn btn-danger">Finalize</button>
-        </div>
-      </section>
+<div id="tab-vendors" class="panel">
+  <div class="mgrid">
+    <div class="mc mcp"><div class="ml">Total</div><div class="mv" id="mv-tot">10</div></div>
+    <div class="mc mct"><div class="ml">Active</div><div class="mv" id="mv-act">0</div></div>
+    <div class="mc mcc"><div class="ml">Denied</div><div class="mv" id="mv-den">0</div></div>
+    <div class="mc mca"><div class="ml">Deals</div><div class="mv" id="mv-don">0</div></div>
+  </div>
+  <div class="card" style="overflow-x:auto">
+    <table class="vtbl">
+      <colgroup><col style="width:18px"><col style="width:84px"><col style="width:60px"><col style="width:38px"><col style="width:70px"><col style="width:70px"><col style="width:36px"><col style="width:66px"><col style="width:55px"></colgroup>
+      <thead><tr><th>#</th><th>Vendor</th><th>Price ₹</th><th>Del.</th><th>Quality</th><th>Reliability</th><th>Margin</th><th>Status</th><th>Rating</th></tr></thead>
+      <tbody id="vtbody"></tbody>
+    </table>
+  </div>
+</div>
 
-      <section class="dashboard">
-        <article class="panel card">
-          <h2>Episode Snapshot</h2>
-          <dl class="facts" id="facts"></dl>
-        </article>
-
-        <article class="panel card">
-          <h2>Ranked Deals</h2>
-          <div id="dealsList" class="deals-list"></div>
-        </article>
-
-        <article class="panel card panel-log">
-          <h2>Step Log</h2>
-          <div id="logList" class="log-list"></div>
-        </article>
-      </section>
-
-      <section class="card vendors-wrap">
-        <h2>Vendors</h2>
-        <div id="vendorsGrid" class="vendors-grid"></div>
-      </section>
-    </main>
-
+<div id="tab-results" class="panel">
+  <div id="res-ph" class="card"><p style="color:var(--color-text-secondary);font-size:12px">Run the agent to generate results.</p></div>
+  <div id="res-main" style="display:none">
+    <div id="score-banner"></div>
+    <div id="conflict-area"></div>
+    <div id="rec-area"></div>
+    <div class="card">
+      <div class="slbl">All vendor deals — ranked</div>
+      <div id="ranked"></div>
+    </div>
+    <div class="card" style="margin-top:9px">
+      <div class="slbl">Reward breakdown</div>
+      <div id="reward-body"></div>
+    </div>
+    <div id="human-loop" style="display:none">
+      <div class="vpick">
+        <div class="slbl" style="color:#D85A30">Human-in-the-loop override</div>
+        <p style="font-size:11px;color:var(--color-text-secondary);margin-bottom:7px">Non-optimal override penalises agent rating — simulating a real procurement mistake.</p>
+        <div id="pick-list"></div>
+        <div id="pick-note" class="pnote" style="display:none"></div>
+      </div>
+    </div>
+    <div style="display:flex;gap:7px;margin-top:10px;flex-wrap:wrap">
+      <button class="btn bp" id="conf-btn" onclick="confirmBest()">Accept agent recommendation</button>
+      <button class="btn bsm" onclick="toggleHuman()">Override (human-in-loop)</button>
+    </div>
+    <div id="conf-area"></div>
+  </div>
+</div>
+</div>
     <script src="/ui/app.js" defer></script>
   </body>
 </html>
