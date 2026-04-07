@@ -251,6 +251,10 @@ class MyEnvV4Env:
 
         vendor.status = "negotiating"
         vendor.negotiation_attempts += 1
+
+        extra_penalty = 0.0
+        if vendor.negotiation_attempts > 5:
+            extra_penalty = -0.02
         self._last_vendor_id = vendor.vendor_id
 
         offer = action.offer_price if action.offer_price is not None else self.expected_price
@@ -279,7 +283,7 @@ class MyEnvV4Env:
         vendor.quote_price = round(vendor.quote_price * shrink, 2)
         vendor.status = "active"
         self._last_action_result = "counter"
-        return -0.01, "counter_offer", None
+        return -0.01 + extra_penalty, "counter_offer", None
 
     def _do_accept(self, action: MyEnvV4Action):
         vendor = self._find_vendor(action.vendor_id)
