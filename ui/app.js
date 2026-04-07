@@ -242,7 +242,7 @@ async function initEpisode(task = state.task) {
       }),
     });
     syncFromResult(resetResult);
-    addLog(`[START] task=${state.task} expected=₹${state.expectedPrice} budget=₹${state.budgetPerKg}`);
+    addLog(`[START] task=${state.task} expected=Rs${state.expectedPrice} budget=Rs${state.budgetPerKg}`);
   } catch (err) {
     addLog(`[DEBUG] Backend unavailable: ${err.message}`, true);
     alert("Backend API not reachable. Start it with: uvicorn app:app --host 127.0.0.1 --port 8000");
@@ -419,8 +419,8 @@ function renderFacts() {
   ui.facts.innerHTML = "";
 
   const facts = [
-    ["Budget", `₹${state.budgetPerKg}/kg`],
-    ["Expected", `₹${state.expectedPrice}/kg`],
+    ["Budget", `Rs${state.budgetPerKg}/kg`],
+    ["Expected", `Rs${state.expectedPrice}/kg`],
     ["Quantity", `${state.quantityKg.toLocaleString()} kg`],
     ["Cumulative Reward", state.cumulativeReward.toFixed(4)],
     ["Active Vendors", String(activeCount())],
@@ -457,7 +457,7 @@ function renderDeals() {
     item.className = "deal-item";
     item.innerHTML = `
       <strong>#${idx + 1} ${d.vendor_id} (${d.name})</strong><br>
-      Price: ₹${d.accepted_price} | Score: ${d.rank_score.toFixed(3)} | Budget: ${d.within_budget ? "in" : "over"}
+      Price: Rs${d.accepted_price} | Score: ${d.rank_score.toFixed(3)} | Budget: ${d.within_budget ? "in" : "over"}
     `;
     ui.dealsList.appendChild(item);
   });
@@ -489,8 +489,8 @@ function renderVendors() {
         <span class="chip ${v.status}">${v.status}</span>
       </div>
       <div class="vendor-meta">
-        <div><span>Quote</span><br>₹${v.quote_price}</div>
-        <div><span>Accepted</span><br>${Number.isFinite(v.accepted_price) ? `₹${v.accepted_price}` : "-"}</div>
+        <div><span>Quote</span><br>Rs${v.quote_price}</div>
+        <div><span>Accepted</span><br>${Number.isFinite(v.accepted_price) ? `Rs${v.accepted_price}` : "-"}</div>
         <div><span>Delivery</span><br>${v.delivery_days} days</div>
         <div><span>Attempts</span><br>${v.negotiation_attempts}</div>
         <div><span>Quality</span><br>${v.quality_score.toFixed(2)}</div>

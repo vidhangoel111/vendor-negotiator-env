@@ -54,7 +54,7 @@ _ENV: Optional[MyEnvV4Env] = None
 
 @app.get("/")
 async def root() -> RedirectResponse:
-    return RedirectResponse(url="/ui/index_v2.html", status_code=307)
+    return RedirectResponse(url="/ui/index.html", status_code=307)
 
 
 @app.get("/health")
