@@ -1,4 +1,4 @@
-name: Vendor Negotiation RL Environment
+﻿name: Vendor Negotiation RL Environment
 version: 1.0.0
 description: |
   Autonomous vendor negotiation environment where an RL agent selects and negotiates 
@@ -65,10 +65,10 @@ observation_space:
       description: Current episode step
     budget_per_kg:
       type: number
-      description: Hidden budget ceiling (₹/kg)
+      description: Hidden budget ceiling (â‚¹/kg)
     expected_price:
       type: number
-      description: Public reference price (₹/kg)
+      description: Public reference price (â‚¹/kg)
     quantity_kg:
       type: integer
       description: Order quantity
@@ -101,7 +101,7 @@ action_space:
     offer_price:
       type: number
       nullable: true
-      description: Counter-offer price in ₹/kg
+      description: Counter-offer price in â‚¹/kg
     reasoning:
       type: string
       nullable: true
@@ -127,7 +127,7 @@ reward_function:
   metrics:
     - name: Deal acceptance within budget
       reward: +0.18
-      condition: Vendor accepts offer ≤ budget
+      condition: Vendor accepts offer â‰¤ budget
     - name: Multi-step negotiation (step 1)
       reward: +0.16
       condition: Deal reached on first counter-offer attempt
@@ -146,10 +146,10 @@ reward_function:
     - name: Vendor denial
       reward: -0.09
       condition: Vendor refuses and is marked denied
-    - name: Efficiency bonus (≤10 steps)
+    - name: Efficiency bonus (â‰¤10 steps)
       reward: +0.12
       condition: Episode completed within 10 steps
-    - name: Efficiency bonus (≤16 steps)
+    - name: Efficiency bonus (â‰¤16 steps)
       reward: +0.06
       condition: Episode completed within 16 steps
     - name: No deal at all
@@ -160,10 +160,10 @@ grading_function:
   description: Deterministic grader
   scoring_logic: |
     1. Identify best closed deal by rank_score.
-    2. Rank score: 0.35×price_fraction + 0.20×delivery_score + 0.25×quality + 0.20×reliability.
-    3. Final score: rank_score × 0.90 + efficiency_bonus (0.12 if ≤10 steps, 0.06 if ≤16).
+    2. Rank score: 0.35Ã—price_fraction + 0.20Ã—delivery_score + 0.25Ã—quality + 0.20Ã—reliability.
+    3. Final score: rank_score Ã— 0.90 + efficiency_bonus (0.12 if â‰¤10 steps, 0.06 if â‰¤16).
     4. Clamp to [0, 1].
-    5. Success threshold: score ≥ 0.40.
+    5. Success threshold: score â‰¥ 0.40.
 
 environment_variables:
   - name: API_BASE_URL
@@ -190,7 +190,11 @@ environment_variables:
   - name: MY_ENV_V4_EXPECTED_PRICE
     required: false
     default: "180"
-    description: Expected item price (₹/kg)
+    description: Expected item price (Rs/kg)
+  - name: MY_ENV_V4_STOCHASTIC_VENDORS
+    required: false
+    default: "true"
+    description: Enable stochastic vendor quotes and acceptance dynamics (set false for deterministic vendors)
 
 docker:
   image_name: vendor-negotiation-env
@@ -202,3 +206,4 @@ deployment:
   default_space_config:
     app_file: app.py
     sdk: docker
+

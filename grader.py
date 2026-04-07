@@ -48,8 +48,8 @@ def heuristic_action(obs: VendorNegotiationObservation) -> MyEnvV4Action:
 
 # ── Single episode runner ─────────────────────────────────────────────────────
 
-async def run_episode(task: str, seed: int = None, verbose: bool = False) -> dict:
-    env = MyEnvV4Env(task=task, seed=seed)
+async def run_episode(task: str, seed: int = None, verbose: bool = False, stochastic_vendors: bool = True) -> dict:
+    env = MyEnvV4Env(task=task, seed=seed, stochastic_vendors=stochastic_vendors)
     obs = await env.reset()
 
     steps = 0
@@ -84,17 +84,18 @@ async def run_episode(task: str, seed: int = None, verbose: bool = False) -> dic
         "cumulative_reward": round(sum(rewards), 4),
         "rewards": rewards,
         "success": score >= 0.40,
+        "stochastic_vendors": stochastic_vendors,
     }
 
 
 # ── Multi-run grader ──────────────────────────────────────────────────────────
 
-async def grade_task(task: str, runs: int = 3, verbose: bool = False) -> dict:
+async def grade_task(task: str, runs: int = 3, verbose: bool = False, stochastic_vendors: bool = True) -> dict:
     scores = []
     results = []
 
     for i in range(runs):
-        r = await run_episode(task=task, seed=i * 42, verbose=verbose)
+        r = await run_episode(task=task, seed=i * 42, verbose=verbose, stochastic_vendors=stochastic_vendors)
         scores.append(r["score"])
         results.append(r)
 
@@ -119,17 +120,18 @@ async def grade_task(task: str, runs: int = 3, verbose: bool = False) -> dict:
 
 # ── Main ──────────────────────────────────────────────────────────────────────
 
-async def main(tasks: List[str], runs: int, verbose: bool):
+async def main(tasks: List[str], runs: int, verbose: bool, stochastic_vendors: bool):
     print("=" * 60)
     print("  VendorOS — OpenEnv Grader")
     print("  Heuristic agent · No LLM required")
+    print(f"  Vendor mode: {'stochastic' if stochastic_vendors else 'deterministic'}")
     print("=" * 60)
 
     all_results = {}
 
     for task in tasks:
         print(f"\n▶ Task: {task.upper()}")
-        result = await grade_task(task=task, runs=runs, verbose=verbose)
+        result = await grade_task(task=task, runs=runs, verbose=verbose, stochastic_vendors=stochastic_vendors)
         all_results[task] = result
 
         print(f"  avg={result['avg_score']:.4f}  best={result['best_score']:.4f}  "
@@ -165,8 +167,16 @@ if __name__ == "__main__":
     parser.add_argument("--task", choices=["easy", "medium", "hard", "all"], default="all")
     parser.add_argument("--runs", type=int, default=3, help="Number of runs per task")
     parser.add_argument("--verbose", action="store_true", help="Print every step")
+    parser.add_argument("--deterministic-vendors", action="store_true", help="Disable stochastic vendor dynamics")
     args = parser.parse_args()
 
     tasks_to_run = ["easy", "medium", "hard"] if args.task == "all" else [args.task]
 
-    asyncio.run(main(tasks=tasks_to_run, runs=args.runs, verbose=args.verbose))
+    asyncio.run(
+        main(
+            tasks=tasks_to_run,
+            runs=args.runs,
+            verbose=args.verbose,
+            stochastic_vendors=not args.deterministic_vendors,
+        )
+    )

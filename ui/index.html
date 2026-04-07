@@ -76,6 +76,11 @@
   </div>
 
   <div id="scenario-box"></div>
+  <div class="mode-toggle" role="group" aria-label="Vendor randomness mode">
+    <span class="mode-title">Vendor dynamics:</span>
+    <button class="mode-btn active" id="mode-deterministic" onclick="setVendorMode(false)">✓ Deterministic vendors</button>
+    <button class="mode-btn" id="mode-stochastic" onclick="setVendorMode(true)">[ ] Stochastic vendors</button>
+  </div>
 
   <div class="card">
     <div class="slbl">Procurement parameters</div>

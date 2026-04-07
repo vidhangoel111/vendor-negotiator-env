@@ -39,6 +39,7 @@ class VendorNegotiationObservation(BaseModel):
     cumulative_reward: float
     episode_done: bool
     current_ranked_deals: List[Dict[str, Any]]
+    stochastic_vendors: bool = True
 
 
 class MyEnvV4Action(BaseModel):
@@ -120,12 +121,14 @@ class MyEnvV4Env:
         expected_price: float = 180.0,
         quantity_kg: int = 1000,
         seed: Optional[int] = None,
+        stochastic_vendors: bool = True,
     ):
         self.task = task if task in TASK_CONFIGS else "easy"
         self.item = item
         self.expected_price = expected_price
         self.quantity_kg = quantity_kg
         self._rng = random.Random(seed)
+        self.stochastic_vendors = stochastic_vendors
         self._cfg = TASK_CONFIGS[self.task]
         self.budget_per_kg = round(expected_price * self._cfg["budget_multiplier"], 2)
 
@@ -144,7 +147,8 @@ class MyEnvV4Env:
         expected = float(os.getenv("MY_ENV_V4_EXPECTED_PRICE", "180"))
         qty = int(os.getenv("MY_ENV_V4_QTY", "1000"))
         item = os.getenv("MY_ENV_V4_ITEM", "Rice")
-        return cls(task=task, item=item, expected_price=expected, quantity_kg=qty)
+        stochastic = os.getenv("MY_ENV_V4_STOCHASTIC_VENDORS", "true").strip().lower() in ("1", "true", "yes", "on")
+        return cls(task=task, item=item, expected_price=expected, quantity_kg=qty, stochastic_vendors=stochastic)
 
     async def reset(self) -> VendorNegotiationObservation:
         self._step = 0
@@ -210,6 +214,7 @@ class MyEnvV4Env:
             "task": self.task,
             "step": self._step,
             "done": self._done,
+            "stochastic_vendors": self.stochastic_vendors,
             "budget_per_kg": self.budget_per_kg,
             "expected_price": self.expected_price,
             "quantity_kg": self.quantity_kg,
@@ -256,7 +261,10 @@ class MyEnvV4Env:
             max(0.05, coop * (1.0 - max(0, (floor - offer) / max(floor, 1)) * 1.8)),
         )
 
-        if offer >= floor and self._rng.random() < accept_p:
+        accepted = offer >= floor and (
+            self._rng.random() < accept_p if self.stochastic_vendors else accept_p >= 0.5
+        )
+        if accepted:
             final_price = round(min(offer, vendor.quote_price), 2)
             vendor.accepted_price = final_price
             vendor.status = "deal_closed"
@@ -267,7 +275,8 @@ class MyEnvV4Env:
             neg_penalty = -0.025 * max(0, vendor.negotiation_attempts - 1)
             return round(base_rew + neg_penalty, 4), "deal_accepted", None
 
-        vendor.quote_price = round(vendor.quote_price * self._rng.uniform(0.94, 0.99), 2)
+        shrink = self._rng.uniform(0.94, 0.99) if self.stochastic_vendors else 0.97
+        vendor.quote_price = round(vendor.quote_price * shrink, 2)
         vendor.status = "active"
         self._last_action_result = "counter"
         return -0.01, "counter_offer", None
@@ -347,17 +356,24 @@ class MyEnvV4Env:
     def _generate_vendor_pool(self) -> List[VendorState]:
         vendors: List[VendorState] = []
         for cat in VENDOR_CATALOGUE:
-            noise = self._rng.uniform(-self._cfg["noise"], self._cfg["noise"])
-            bias = self._cfg["price_bias"] * self._rng.uniform(0.5, 1.0)
+            if self.stochastic_vendors:
+                noise = self._rng.uniform(-self._cfg["noise"], self._cfg["noise"])
+                bias = self._cfg["price_bias"] * self._rng.uniform(0.5, 1.0)
+                deny_random_bonus = 0.12 if self._rng.random() < 0.15 else 0.0
+            else:
+                # Deterministic profile: no random quote fluctuation, stable bias.
+                noise = 0.0
+                bias = self._cfg["price_bias"] * 0.75
+                deny_random_bonus = 0.0
             quote = round(cat["base_price"] * (1 + noise + bias), 2)
 
             deny_p = min(
                 0.85,
                 self._cfg["deny_base"]
                 + (1 - cat["reliability"]) * self._cfg["deny_variance"]
-                + (0.12 if self._rng.random() < 0.15 else 0.0),
+                + deny_random_bonus,
             )
-            denied = self._rng.random() < deny_p
+            denied = (self._rng.random() < deny_p) if self.stochastic_vendors else (deny_p >= 0.50)
 
             vendors.append(
                 VendorState(
@@ -403,4 +419,5 @@ class MyEnvV4Env:
             cumulative_reward=self._cum_reward,
             episode_done=self._done,
             current_ranked_deals=ranked_summary,
+            stochastic_vendors=self.stochastic_vendors,
         )

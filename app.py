@@ -36,6 +36,7 @@ class ResetRequest(BaseModel):
     expected_price: float = Field(default=180.0)
     quantity_kg: int = Field(default=1000)
     seed: Optional[int] = None
+    stochastic_vendors: bool = Field(default=True)
 
 
 class StepRequest(BaseModel):
@@ -83,6 +84,7 @@ async def reset(payload: ResetRequest) -> Dict[str, Any]:
         expected_price=payload.expected_price,
         quantity_kg=payload.quantity_kg,
         seed=payload.seed,
+        stochastic_vendors=payload.stochastic_vendors,
     )
     obs = await _ENV.reset()
     return {"observation": obs.model_dump(), "state": _ENV.state()}
@@ -137,6 +139,7 @@ async def agent_step(payload: ResetRequest) -> Dict[str, Any]:
             expected_price=payload.expected_price,
             quantity_kg=payload.quantity_kg,
             seed=payload.seed,
+            stochastic_vendors=payload.stochastic_vendors,
         )
         await _ENV.reset()
 

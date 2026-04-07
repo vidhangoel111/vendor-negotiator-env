@@ -34,6 +34,7 @@ TASK_NAME = os.getenv("MY_ENV_V4_TASK", "easy")
 BENCHMARK = os.getenv("MY_ENV_V4_BENCHMARK", "vendor_negotiation_v4")
 MAX_STEPS = int(os.getenv("MY_ENV_V4_MAX_STEPS", "20"))
 TEMPERATURE = float(os.getenv("MY_ENV_V4_TEMPERATURE", "0.3"))
+STOCHASTIC_VENDORS = os.getenv("MY_ENV_V4_STOCHASTIC_VENDORS", "true").strip().lower() in ("1", "true", "yes", "on")
 MAX_TOKENS = 512
 SUCCESS_SCORE_THRESHOLD = 0.40
 
@@ -194,7 +195,7 @@ def get_agent_action(client: Any, obs: VendorNegotiationObservation, step: int) 
 # ── Episode runner ────────────────────────────────────────────────────────────
 
 async def run_episode(task: str, client: Any) -> None:
-    env = MyEnvV4Env(task=task)
+    env = MyEnvV4Env(task=task, stochastic_vendors=STOCHASTIC_VENDORS)
     rewards: List[float] = []
     steps_taken = 0
     score = 0.0
