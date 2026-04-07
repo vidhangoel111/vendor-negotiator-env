@@ -49,14 +49,34 @@ let G={
   task:'easy',item:'Rice',exp:180,bud:216,qty:1000,spd:380,
   steps:0,cumRew:0,vendors:[],results:[],trace:[],
   running:false,paused:false,confirmed:false,pauseRes:null,
+  stochasticVendors:false,
   agent:{r:0.70,deals:0,over:0,runs:0,rewHistory:[],hist:[0.70]}
 };
+
+function setVendorMode(stochastic){
+  G.stochasticVendors=Boolean(stochastic);
+  const det=document.getElementById('mode-deterministic');
+  const sto=document.getElementById('mode-stochastic');
+  if(!det || !sto)return;
+  if(G.stochasticVendors){
+    det.classList.remove('active');
+    sto.classList.add('active');
+    det.textContent='[ ] Deterministic vendors';
+    sto.textContent='✓ Stochastic vendors';
+  } else {
+    sto.classList.remove('active');
+    det.classList.add('active');
+    sto.textContent='[ ] Stochastic vendors';
+    det.textContent='✓ Deterministic vendors';
+  }
+}
 
 function selectTask(t){
   G.task=t;
   ['easy','medium','hard'].forEach(k=>{
     const el=document.getElementById('tc-'+k);
-    el.className='tc tc-'+k+(k===t?' sel':'');
+    if(!el)return;
+    el.className='tc tc-'+(k==='medium'?'med':k)+(k===t?' sel':'');
   });
   updateBudget();
   renderScenarioBox();
@@ -83,13 +103,13 @@ function renderScenarioBox(){
 function mkVendors(){
   const t=TASKS[G.task];
   return VB.map((v,i)=>{
-    const noise=rng(-t.vendorNoise, t.vendorNoise);
-    const bias=t.priceBias*(0.5+R()*0.5);
+    const noise=G.stochasticVendors ? rng(-t.vendorNoise, t.vendorNoise) : 0;
+    const bias=G.stochasticVendors ? t.priceBias*(0.5+R()*0.5) : t.priceBias*0.75;
     const quote=Math.round(v.bp*(1+noise+bias));
-    const denyP=cl(t.denyBase+(1-v.rel)*t.denyVar+(R()<0.15?0.12:0),0,0.85);
-    const denied=R()<denyP;
-    const baseR=cl(v.q*0.45+v.rel*0.35+rng(-0.05,0.05),0.1,1.0);
-    const stubborn=rng(t.stubRange[0],t.stubRange[1]);
+    const denyP=cl(t.denyBase+(1-v.rel)*t.denyVar+((G.stochasticVendors&&R()<0.15)?0.12:0),0,0.85);
+    const denied=G.stochasticVendors ? (R()<denyP) : (denyP>=0.50);
+    const baseR=cl(v.q*0.45+v.rel*0.35+(G.stochasticVendors?rng(-0.05,0.05):0),0.1,1.0);
+    const stubborn=G.stochasticVendors ? rng(t.stubRange[0],t.stubRange[1]) : ((t.stubRange[0]+t.stubRange[1])/2);
     return{...v,margin:MARGINS[i],oRank:i+1,quote,accepted:null,
       status:denied?'denied':'active',deal:false,
       rating:parseFloat(baseR.toFixed(2)),rHist:[parseFloat(baseR.toFixed(2))],
@@ -204,7 +224,7 @@ async function negotiateV(v){
       addAF('c-ag',`ACTION counter_offer(${v.id}, ₹${offer}) step ${i+1}/4`);
       await delay(sp*0.85);
       updSG();
-      const nfloor=Math.round(floor*(1+rng(-0.05,0.05)));
+      const nfloor=Math.round(floor*(1+(G.stochasticVendors?rng(-0.05,0.05):0)));
       if(offer>=nfloor){
         v.accepted=offer;v.deal=true;v.status='active';
         bumpVendor(v,true);bumpAgent(0.025);G.agent.deals++;
@@ -236,8 +256,8 @@ async function negotiateV(v){
     addAF('c-ag',`ACTION final_offer(${v.id}, ₹${maxCap}) margin-capped`);
     await delay(sp*0.9);
     const coopBase=v.rel>0.82?0.62:v.rel>0.68?0.48:0.30;
-    const coopP=cl(coopBase+agBonus*0.12+t.coopBonus*0.25+rng(-0.14,0.14),0.04,0.88);
-    if(R()<coopP){
+    const coopP=cl(coopBase+agBonus*0.12+t.coopBonus*0.25+(G.stochasticVendors?rng(-0.14,0.14):0),0.04,0.88);
+    if(G.stochasticVendors ? (R()<coopP) : (coopP>=0.50)){
       v.accepted=maxCap;v.deal=true;v.status='active';
       bumpVendor(v,true);bumpAgent(0.015);G.agent.deals++;
       addRew(0.09,'margin-cap accepted');
@@ -564,5 +584,6 @@ function fullReset(){
   updMetrics();updSG();
 }
 
+setVendorMode(false);
 selectTask('easy');renderScenarioBox();updAgentPanel();updMetrics();updSG();
 
