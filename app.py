@@ -5,7 +5,7 @@ import random
 from pathlib import Path
 from typing import Any, Dict, Optional
 
-from fastapi import FastAPI, HTTPException
+from fastapi import FastAPI, HTTPException, Request
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import RedirectResponse
 from fastapi.staticfiles import StaticFiles
@@ -196,10 +196,22 @@ async def health() -> Dict[str, Any]:
 
 
 @app.post("/reset")
-async def reset(payload: Optional[ResetRequest] = None) -> Dict[str, Any]:
+async def reset(request: Request) -> Dict[str, Any]:
     global _ENV
 
-    cfg = payload or ResetRequest()
+    payload: Optional[Dict[str, Any]]
+    try:
+        payload = await request.json()
+        if not isinstance(payload, dict):
+            payload = None
+    except Exception:
+        payload = None
+
+    try:
+        cfg = ResetRequest.model_validate(payload or {})
+    except Exception:
+        # Be permissive for external validators that may send malformed/empty body.
+        cfg = ResetRequest()
 
     if _ENV is not None:
         await _ENV.close()
@@ -388,8 +400,8 @@ async def feedback(payload: FeedbackRequest) -> Dict[str, Any]:
 
 
 @app.post("/api/reset")
-async def api_reset_alias(payload: Optional[ResetRequest] = None) -> Dict[str, Any]:
-    return await reset(payload)
+async def api_reset_alias(request: Request) -> Dict[str, Any]:
+    return await reset(request)
 
 
 @app.post("/api/step")
