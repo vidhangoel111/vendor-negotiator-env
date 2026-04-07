@@ -46,7 +46,7 @@ let G = {
   trace: [],
   confirmed: false,
   agentPickVendor: null,
-  agent: { r: 0.7, deals: 0, over: 0, runs: 0, rewHistory: [], hist: [0.7] },
+  agent: { r: 0.7, deals: 0, over: 0, runs: 0, rewHistory: [], hist: [0.7], rewardTotal: 0, penaltyTotal: 0, netSignal: 0, updates: 0 },
 };
 
 function delay(ms) {
@@ -96,6 +96,15 @@ function setAgentReputation(v) {
     if (G.agent.hist.length > 40) G.agent.hist.shift();
   }
   return next - prev;
+}
+
+function applyPolicyMetrics(metrics) {
+  if (!metrics) return;
+  if (typeof metrics.task_reputation === "number") setAgentReputation(metrics.task_reputation);
+  if (typeof metrics.reward_total === "number") G.agent.rewardTotal = Number(metrics.reward_total);
+  if (typeof metrics.penalty_total === "number") G.agent.penaltyTotal = Number(metrics.penalty_total);
+  if (typeof metrics.net_signal === "number") G.agent.netSignal = Number(metrics.net_signal);
+  if (typeof metrics.updates === "number") G.agent.updates = Number(metrics.updates);
 }
 
 function appendPolicyTrace(actionText, obs, reward) {
@@ -297,11 +306,9 @@ async function backendAgentStep() {
   const out = await postJsonWithFallback("/agent-step", null, payload);
   const reward = Number(out.reward || 0);
   syncFromObservation(out.observation, reward, Boolean(out.done));
-  if (out.policy_metrics && typeof out.policy_metrics.task_reputation === "number") {
-    setAgentReputation(out.policy_metrics.task_reputation);
-  }
+  applyPolicyMetrics(out.policy_metrics);
   appendPolicyTrace(out.action || "agent-step", out.observation, reward);
-  addAF("c-sy", `ACTION ${out.action || "agent-step"} | reward=${reward.toFixed(3)} | done=${String(Boolean(out.done))}`);
+  addAF("c-sy", `ACTION ${out.action || "agent-step"} | reward=${reward.toFixed(3)} | done=${String(Boolean(out.done))} | R+ ${G.agent.rewardTotal.toFixed(3)} / P- ${G.agent.penaltyTotal.toFixed(3)}`);
 }
 
 async function runEpisode() {
@@ -448,6 +455,7 @@ function updAgentPanel() {
       : G.agent.r >= 0.62
         ? "Moderate - standard vendor cooperation"
         : "Low - harder negotiations and more resistance";
+  document.getElementById("ag-note").textContent += ` | R+ ${G.agent.rewardTotal.toFixed(2)} · P- ${G.agent.penaltyTotal.toFixed(2)} · net ${G.agent.netSignal.toFixed(2)} · updates ${G.agent.updates}`;
   document.getElementById("ag-dots").innerHTML = h
     .slice(-10)
     .map((rv) => `<span class="hdot" style="background:${rv >= 0.8 ? "#1D9E75" : rv >= 0.62 ? "#BA7517" : "#D85A30"};width:7px;height:7px"></span>`)
@@ -595,12 +603,10 @@ async function pickV(vid, pen, isBest) {
     };
     const fb = await postJsonWithFallback("/feedback", "/api/feedback", payload);
     if (fb && fb.ok) {
-      if (typeof fb.task_reputation === "number") {
-        setAgentReputation(fb.task_reputation);
-      }
+      applyPolicyMetrics(fb.policy_metrics);
       addAF(
         "c-if",
-        `Feedback learned | agent=${payload.agent_vendor_id} -> ${fb.applied.agent_q.toFixed(3)} | chosen=${payload.chosen_vendor_id} -> ${fb.applied.chosen_q.toFixed(3)}`
+        `Feedback learned | agent=${payload.agent_vendor_id} -> ${fb.applied.agent_q.toFixed(3)} | chosen=${payload.chosen_vendor_id} -> ${fb.applied.chosen_q.toFixed(3)} | R+ ${G.agent.rewardTotal.toFixed(3)} / P- ${G.agent.penaltyTotal.toFixed(3)}`
       );
     }
   } catch (err) {

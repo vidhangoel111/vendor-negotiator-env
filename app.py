@@ -13,7 +13,7 @@ from pydantic import BaseModel, Field
 
 from my_env_v4 import MyEnvV4Action, MyEnvV4Env
 
-app = FastAPI(title="Vendor Negotiation RL Environment", version="1.4.0")
+app = FastAPI(title="Vendor Negotiation RL Environment", version="1.5.0")
 
 BASE_DIR = Path(__file__).resolve().parent
 UI_DIR = BASE_DIR / "ui"
@@ -57,29 +57,65 @@ class FeedbackRequest(BaseModel):
 
 _ENV: Optional[MyEnvV4Env] = None
 _VENDOR_PREF: Dict[str, Dict[str, float]] = {}
+_LEARN_STATS: Dict[str, Dict[str, float]] = {}
+
+
+def _blank_stats() -> Dict[str, float]:
+    return {
+        "reward_total": 0.0,
+        "penalty_total": 0.0,
+        "net_signal": 0.0,
+        "updates": 0.0,
+        "reputation": 0.70,
+    }
 
 
 def _load_pref() -> None:
-    global _VENDOR_PREF
+    global _VENDOR_PREF, _LEARN_STATS
     if not PREF_PATH.exists():
         _VENDOR_PREF = {}
+        _LEARN_STATS = {}
         return
     try:
         raw = json.loads(PREF_PATH.read_text(encoding="utf-8"))
-        if isinstance(raw, dict):
-            _VENDOR_PREF = {
-                str(task): {str(vid): float(val) for vid, val in vals.items()}
-                for task, vals in raw.items()
-                if isinstance(vals, dict)
-            }
-        else:
+        if not isinstance(raw, dict):
             _VENDOR_PREF = {}
+            _LEARN_STATS = {}
+            return
+
+        if "prefs" in raw:
+            raw_prefs = raw.get("prefs", {})
+            raw_stats = raw.get("stats", {})
+        else:
+            # Backward compatibility with old flat schema.
+            raw_prefs = raw
+            raw_stats = {}
+
+        _VENDOR_PREF = {
+            str(task): {str(vid): float(val) for vid, val in vals.items()}
+            for task, vals in raw_prefs.items()
+            if isinstance(vals, dict)
+        }
+
+        _LEARN_STATS = {}
+        for task in ("easy", "medium", "hard"):
+            base = _blank_stats()
+            src = raw_stats.get(task, {}) if isinstance(raw_stats, dict) else {}
+            if isinstance(src, dict):
+                base["reward_total"] = float(src.get("reward_total", 0.0))
+                base["penalty_total"] = float(src.get("penalty_total", 0.0))
+                base["net_signal"] = float(src.get("net_signal", base["reward_total"] - base["penalty_total"]))
+                base["updates"] = float(src.get("updates", 0.0))
+                base["reputation"] = float(src.get("reputation", 0.70))
+            _LEARN_STATS[task] = base
     except Exception:
         _VENDOR_PREF = {}
+        _LEARN_STATS = {}
 
 
 def _save_pref() -> None:
-    PREF_PATH.write_text(json.dumps(_VENDOR_PREF, indent=2), encoding="utf-8")
+    payload = {"prefs": _VENDOR_PREF, "stats": _LEARN_STATS}
+    PREF_PATH.write_text(json.dumps(payload, indent=2), encoding="utf-8")
 
 
 def _pref(task: str, vendor_id: str) -> float:
@@ -95,13 +131,50 @@ def _update_pref(task: str, vendor_id: str, reward_signal: float, alpha: float =
     return new
 
 
+def _task_stats(task: str) -> Dict[str, float]:
+    if task not in _LEARN_STATS:
+        _LEARN_STATS[task] = _blank_stats()
+    return _LEARN_STATS[task]
+
+
+def _apply_signal(task: str, signal: float) -> Dict[str, float]:
+    s = _task_stats(task)
+    if signal >= 0:
+        s["reward_total"] = round(s["reward_total"] + float(signal), 4)
+    else:
+        s["penalty_total"] = round(s["penalty_total"] + abs(float(signal)), 4)
+
+    s["updates"] = round(s["updates"] + 1.0, 4)
+    s["net_signal"] = round(s["reward_total"] - s["penalty_total"], 4)
+
+    # Strong mapping for visible reputation response.
+    norm = s["net_signal"] / max(1.0, s["updates"] * 0.45)
+    s["reputation"] = round(max(0.10, min(1.00, 0.55 + norm * 0.35)), 4)
+    return s
+
+
 def _task_reputation(task: str) -> float:
+    stat = _LEARN_STATS.get(task)
+    if stat and stat.get("updates", 0.0) > 0:
+        return round(float(stat.get("reputation", 0.70)), 3)
+
     vals = list(_VENDOR_PREF.get(task, {}).values())
     if not vals:
         return 0.70
     avg = sum(vals) / max(1, len(vals))
-    # Map [-1, 1] preference band into a visible [0.10, 1.00] reputation.
     return round(max(0.10, min(1.00, 0.55 + avg * 0.40)), 3)
+
+
+def _policy_metrics(task: str, stochastic: bool) -> Dict[str, float]:
+    s = _task_stats(task)
+    return {
+        "task_reputation": _task_reputation(task),
+        "explore_rate": 0.30 if stochastic else 0.0,
+        "reward_total": round(float(s.get("reward_total", 0.0)), 4),
+        "penalty_total": round(float(s.get("penalty_total", 0.0)), 4),
+        "net_signal": round(float(s.get("net_signal", 0.0)), 4),
+        "updates": int(float(s.get("updates", 0.0))),
+    }
 
 
 _load_pref()
@@ -117,7 +190,7 @@ async def health() -> Dict[str, Any]:
     return {
         "status": "ok",
         "name": "vendor-negotiation-env",
-        "version": "1.4.0",
+        "version": "1.5.0",
         "tasks": ["easy", "medium", "hard"],
     }
 
@@ -206,7 +279,7 @@ async def agent_step(payload: ResetRequest) -> Dict[str, Any]:
                 + v.quality_score * 0.33
                 + v.reliability_score * 0.23
                 + max(0.0, 1.0 - 0.25 * float(v.negotiation_attempts)) * 0.10
-                + learned_bias * 0.12
+                + learned_bias * 0.20
             )
             return utility
 
@@ -214,13 +287,12 @@ async def agent_step(payload: ResetRequest) -> Dict[str, Any]:
         pool = under_explored if under_explored else active
         ranked = sorted(pool, key=score, reverse=True)
 
-        # In stochastic mode, add exploration so the agent does not keep picking
-        # the same vendor trajectory across runs.
         explore_rate = 0.30 if payload.stochastic_vendors else 0.0
         if payload.stochastic_vendors and len(ranked) >= 2 and random.random() < explore_rate:
             best = random.choice(ranked[: min(3, len(ranked))])
         else:
             best = ranked[0]
+
         floor_est = best.base_price * (1 - best.negotiation_margin)
 
         if best.negotiation_attempts >= 3:
@@ -256,22 +328,18 @@ async def agent_step(payload: ResetRequest) -> Dict[str, Any]:
 
     result = await _ENV.step(action)
 
-    # Online backend learning signal from env rewards.
     if action.vendor_id:
-        _update_pref(obs.task_difficulty, action.vendor_id, float(result.reward.value), alpha=0.12)
-        _save_pref()
+        _update_pref(obs.task_difficulty, action.vendor_id, float(result.reward.value), alpha=0.16)
+    _apply_signal(obs.task_difficulty, float(result.reward.value))
+    _save_pref()
 
     action_str = f"{action.action_type}(vendor={action.vendor_id},offer={action.offer_price})"
-    rep = _task_reputation(obs.task_difficulty)
 
     return {
         "action": action_str,
         "reward": result.reward.value,
         "done": result.done,
-        "policy_metrics": {
-            "task_reputation": rep,
-            "explore_rate": 0.30 if payload.stochastic_vendors else 0.0,
-        },
+        "policy_metrics": _policy_metrics(obs.task_difficulty, payload.stochastic_vendors),
         "state": _ENV.state(),
         "observation": result.observation.model_dump(),
     }
@@ -283,25 +351,29 @@ async def feedback(payload: FeedbackRequest) -> Dict[str, Any]:
     same_pick = payload.chosen_vendor_id == payload.agent_vendor_id
 
     if same_pick:
-        agent_signal = 0.12
-        chosen_signal = 0.08
+        agent_signal = 0.18
+        chosen_signal = 0.12
     else:
-        base_pen = max(0.05, float(payload.penalty))
+        base_pen = max(0.08, float(payload.penalty) * 2.0)
         agent_signal = -base_pen
-        chosen_signal = 0.05
+        chosen_signal = 0.10
 
     if payload.chosen_over_budget:
-        chosen_signal -= 0.03
+        chosen_signal -= 0.08
 
-    agent_q = _update_pref(task, payload.agent_vendor_id, agent_signal, alpha=0.25)
-    chosen_q = _update_pref(task, payload.chosen_vendor_id, chosen_signal, alpha=0.25)
+    agent_q = _update_pref(task, payload.agent_vendor_id, agent_signal, alpha=0.28)
+    chosen_q = _update_pref(task, payload.chosen_vendor_id, chosen_signal, alpha=0.28)
+    _apply_signal(task, agent_signal)
+    _apply_signal(task, chosen_signal)
     _save_pref()
 
+    metrics = _policy_metrics(task, stochastic=False)
     return {
         "ok": True,
         "task": task,
         "same_pick": same_pick,
         "task_reputation": _task_reputation(task),
+        "policy_metrics": metrics,
         "applied": {
             "agent_vendor": payload.agent_vendor_id,
             "agent_signal": round(agent_signal, 4),
