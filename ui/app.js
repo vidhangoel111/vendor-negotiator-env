@@ -87,6 +87,39 @@ function clamp(v, lo, hi) {
   return Math.max(lo, Math.min(hi, v));
 }
 
+function setAgentReputation(v) {
+  const next = Number(clamp(Number(v || 0.7), 0.1, 1).toFixed(2));
+  const prev = Number.isFinite(G.agent.r) ? G.agent.r : next;
+  G.agent.r = next;
+  if (!G.agent.hist.length || G.agent.hist[G.agent.hist.length - 1] !== next) {
+    G.agent.hist.push(next);
+    if (G.agent.hist.length > 40) G.agent.hist.shift();
+  }
+  return next - prev;
+}
+
+function appendPolicyTrace(actionText, obs, reward) {
+  const box = document.getElementById("ptrace");
+  if (!box || !obs) return;
+  const active = (obs.vendors || []).filter((v) => v.status === "active");
+  const ranked = [...active]
+    .map((v) => {
+      const pterm = 1 - Math.max(0, (Number(v.quote_price) - Number(obs.budget_per_kg)) / Math.max(Number(obs.budget_per_kg), 1));
+      const u = pterm * 0.40 + Number(v.quality_score) * 0.35 + Number(v.reliability_score) * 0.25;
+      return { id: v.vendor_id, q: Number(v.quote_price), u };
+    })
+    .sort((a, b) => b.u - a.u)
+    .slice(0, 3);
+  const pref = ranked.length
+    ? ranked.map((x, i) => `#${i + 1} ${x.id}(₹${x.q},u=${x.u.toFixed(3)})`).join(" | ")
+    : "no active vendors";
+  const row = document.createElement("div");
+  row.className = "prow";
+  row.innerHTML = `<div class="pnum">${G.steps}</div><div style="flex:1"><div style="font-weight:500;font-size:11px">${actionText}</div><div style="font-size:10px;color:var(--color-text-secondary)">Preference: ${pref}</div></div><div style="font-size:10px;color:${reward >= 0 ? "#1D9E75" : "#D85A30"}">r=${Number(reward).toFixed(3)}</div>`;
+  box.appendChild(row);
+  box.scrollTop = box.scrollHeight;
+}
+
 function mapVendor(v) {
   const accepted = v.accepted_price ?? null;
   return {
@@ -124,9 +157,7 @@ function syncFromObservation(obs, reward, done) {
     // EMA-style update keeps reputation visibly responsive.
     const prev = Number.isFinite(G.agent.r) ? G.agent.r : 0.7;
     const target = clamp(0.55 + reward * 1.35, 0.1, 1);
-    G.agent.r = Number(clamp(prev * 0.78 + target * 0.22, 0.1, 1).toFixed(2));
-    G.agent.hist.push(G.agent.r);
-    if (G.agent.hist.length > 40) G.agent.hist.shift();
+    setAgentReputation(clamp(prev * 0.78 + target * 0.22, 0.1, 1));
   }
 
   const deals = G.vendors.filter((v) => v.deal);
@@ -267,8 +298,9 @@ async function backendAgentStep() {
   const reward = Number(out.reward || 0);
   syncFromObservation(out.observation, reward, Boolean(out.done));
   if (out.policy_metrics && typeof out.policy_metrics.task_reputation === "number") {
-    G.agent.r = Number(clamp(out.policy_metrics.task_reputation, 0.1, 1).toFixed(2));
+    setAgentReputation(out.policy_metrics.task_reputation);
   }
+  appendPolicyTrace(out.action || "agent-step", out.observation, reward);
   addAF("c-sy", `ACTION ${out.action || "agent-step"} | reward=${reward.toFixed(3)} | done=${String(Boolean(out.done))}`);
 }
 
@@ -392,6 +424,34 @@ function updAgentPanel() {
     ? G.agent.rewHistory.reduce((a, b) => a + b, 0) / G.agent.rewHistory.length
     : null;
   document.getElementById("ag-avg").textContent = avg !== null ? avg.toFixed(3) : "-";
+  const h = G.agent.hist;
+  const dEl = document.getElementById("ag-dlt");
+  if (h.length >= 2) {
+    const d = Number((h[h.length - 1] - h[h.length - 2]).toFixed(2));
+    if (d > 0.005) {
+      dEl.className = "dlt dup";
+      dEl.textContent = "+" + d.toFixed(2);
+    } else if (d < -0.005) {
+      dEl.className = "dlt ddn";
+      dEl.textContent = d.toFixed(2);
+    } else {
+      dEl.className = "dlt dnu";
+      dEl.textContent = "±0";
+    }
+  } else {
+    dEl.className = "dlt dnu";
+    dEl.textContent = "—";
+  }
+  document.getElementById("ag-note").textContent =
+    G.agent.r >= 0.82
+      ? "High - vendors are highly cooperative"
+      : G.agent.r >= 0.62
+        ? "Moderate - standard vendor cooperation"
+        : "Low - harder negotiations and more resistance";
+  document.getElementById("ag-dots").innerHTML = h
+    .slice(-10)
+    .map((rv) => `<span class="hdot" style="background:${rv >= 0.8 ? "#1D9E75" : rv >= 0.62 ? "#BA7517" : "#D85A30"};width:7px;height:7px"></span>`)
+    .join("");
 }
 
 function computeResults() {
@@ -536,7 +596,7 @@ async function pickV(vid, pen, isBest) {
     const fb = await postJsonWithFallback("/feedback", "/api/feedback", payload);
     if (fb && fb.ok) {
       if (typeof fb.task_reputation === "number") {
-        G.agent.r = Number(clamp(fb.task_reputation, 0.1, 1).toFixed(2));
+        setAgentReputation(fb.task_reputation);
       }
       addAF(
         "c-if",
@@ -546,6 +606,7 @@ async function pickV(vid, pen, isBest) {
   } catch (err) {
     addAF("c-fl", `Feedback save failed: ${err.message}`);
   }
+  updAgentPanel();
   updTopbar();
 }
 
