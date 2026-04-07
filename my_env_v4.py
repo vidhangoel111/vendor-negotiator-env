@@ -179,6 +179,7 @@ class MyEnvV4Env:
             reward_event = "finalize"
             self._done = True
         elif action.action_type == "negotiate":
+            print("STEP ACTION:", action)
             reward, reward_event, err = await self._do_negotiate(action)
             if err:
                 self._last_action_error = err
@@ -240,7 +241,10 @@ class MyEnvV4Env:
     async def close(self) -> None:
         self._done = True
 
+        print("🔥 NEGOTIATE HIT:", action.vendor_id, action.offer_price)
+
     async def _do_negotiate(self, action: MyEnvV4Action):
+        print("🔥 NEGOTIATE HIT:", action.vendor_id, action.offer_price)
         vendor = self._find_vendor(action.vendor_id)
         if vendor is None:
             return -0.02, "invalid_vendor", f"Vendor {action.vendor_id} not found"
