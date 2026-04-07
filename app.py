@@ -48,6 +48,13 @@ async def step(action: ActionInput):
         "state": env.state(),
     }
 
+from fastapi.responses import HTMLResponse
+
+@app.get("/", response_class=HTMLResponse)
+def home():
+    with open("index.html", "r") as f:
+        return f.read()
+
 # from __future__ import annotations
 
 # import asyncio
