@@ -196,19 +196,21 @@ async def health() -> Dict[str, Any]:
 
 
 @app.post("/reset")
-async def reset(payload: ResetRequest) -> Dict[str, Any]:
+async def reset(payload: Optional[ResetRequest] = None) -> Dict[str, Any]:
     global _ENV
+
+    cfg = payload or ResetRequest()
 
     if _ENV is not None:
         await _ENV.close()
 
     _ENV = MyEnvV4Env(
-        task=payload.task,
-        item=payload.item,
-        expected_price=payload.expected_price,
-        quantity_kg=payload.quantity_kg,
-        seed=payload.seed,
-        stochastic_vendors=payload.stochastic_vendors,
+        task=cfg.task,
+        item=cfg.item,
+        expected_price=cfg.expected_price,
+        quantity_kg=cfg.quantity_kg,
+        seed=cfg.seed,
+        stochastic_vendors=cfg.stochastic_vendors,
     )
     obs = await _ENV.reset()
     return {"observation": obs.model_dump(), "state": _ENV.state()}
@@ -386,7 +388,7 @@ async def feedback(payload: FeedbackRequest) -> Dict[str, Any]:
 
 
 @app.post("/api/reset")
-async def api_reset_alias(payload: ResetRequest) -> Dict[str, Any]:
+async def api_reset_alias(payload: Optional[ResetRequest] = None) -> Dict[str, Any]:
     return await reset(payload)
 
 
