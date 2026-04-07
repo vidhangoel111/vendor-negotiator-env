@@ -121,9 +121,10 @@ function syncFromObservation(obs, reward, done) {
   if (typeof reward === "number") {
     G.agent.rewHistory.push(reward);
     if (G.agent.rewHistory.length > 120) G.agent.rewHistory.shift();
-    const avg =
-      G.agent.rewHistory.reduce((a, b) => a + b, 0) / Math.max(1, G.agent.rewHistory.length);
-    G.agent.r = Number(clamp(0.62 + avg * 0.25, 0.1, 1).toFixed(2));
+    // EMA-style update keeps reputation visibly responsive.
+    const prev = Number.isFinite(G.agent.r) ? G.agent.r : 0.7;
+    const target = clamp(0.55 + reward * 1.35, 0.1, 1);
+    G.agent.r = Number(clamp(prev * 0.78 + target * 0.22, 0.1, 1).toFixed(2));
     G.agent.hist.push(G.agent.r);
     if (G.agent.hist.length > 40) G.agent.hist.shift();
   }
@@ -265,6 +266,9 @@ async function backendAgentStep() {
   const out = await postJsonWithFallback("/agent-step", null, payload);
   const reward = Number(out.reward || 0);
   syncFromObservation(out.observation, reward, Boolean(out.done));
+  if (out.policy_metrics && typeof out.policy_metrics.task_reputation === "number") {
+    G.agent.r = Number(clamp(out.policy_metrics.task_reputation, 0.1, 1).toFixed(2));
+  }
   addAF("c-sy", `ACTION ${out.action || "agent-step"} | reward=${reward.toFixed(3)} | done=${String(Boolean(out.done))}`);
 }
 
@@ -531,6 +535,9 @@ async function pickV(vid, pen, isBest) {
     };
     const fb = await postJsonWithFallback("/feedback", "/api/feedback", payload);
     if (fb && fb.ok) {
+      if (typeof fb.task_reputation === "number") {
+        G.agent.r = Number(clamp(fb.task_reputation, 0.1, 1).toFixed(2));
+      }
       addAF(
         "c-if",
         `Feedback learned | agent=${payload.agent_vendor_id} -> ${fb.applied.agent_q.toFixed(3)} | chosen=${payload.chosen_vendor_id} -> ${fb.applied.chosen_q.toFixed(3)}`
@@ -587,7 +594,7 @@ function renderAll() {
   updAgentPanel();
 }
 
-setVendorMode(false);
+setVendorMode(true);
 selectTask("easy");
 renderScenarioBox();
 renderAll();

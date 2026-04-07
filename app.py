@@ -1,6 +1,7 @@
 ﻿from __future__ import annotations
 
 import json
+import random
 from pathlib import Path
 from typing import Any, Dict, Optional
 
@@ -92,6 +93,15 @@ def _update_pref(task: str, vendor_id: str, reward_signal: float, alpha: float =
     new = max(-1.0, min(1.0, round(new, 4)))
     task_map[vendor_id] = new
     return new
+
+
+def _task_reputation(task: str) -> float:
+    vals = list(_VENDOR_PREF.get(task, {}).values())
+    if not vals:
+        return 0.70
+    avg = sum(vals) / max(1, len(vals))
+    # Map [-1, 1] preference band into a visible [0.10, 1.00] reputation.
+    return round(max(0.10, min(1.00, 0.55 + avg * 0.40)), 3)
 
 
 _load_pref()
@@ -202,7 +212,15 @@ async def agent_step(payload: ResetRequest) -> Dict[str, Any]:
 
         under_explored = [v for v in active if v.negotiation_attempts == 0]
         pool = under_explored if under_explored else active
-        best = max(pool, key=score)
+        ranked = sorted(pool, key=score, reverse=True)
+
+        # In stochastic mode, add exploration so the agent does not keep picking
+        # the same vendor trajectory across runs.
+        explore_rate = 0.30 if payload.stochastic_vendors else 0.0
+        if payload.stochastic_vendors and len(ranked) >= 2 and random.random() < explore_rate:
+            best = random.choice(ranked[: min(3, len(ranked))])
+        else:
+            best = ranked[0]
         floor_est = best.base_price * (1 - best.negotiation_margin)
 
         if best.negotiation_attempts >= 3:
@@ -244,11 +262,16 @@ async def agent_step(payload: ResetRequest) -> Dict[str, Any]:
         _save_pref()
 
     action_str = f"{action.action_type}(vendor={action.vendor_id},offer={action.offer_price})"
+    rep = _task_reputation(obs.task_difficulty)
 
     return {
         "action": action_str,
         "reward": result.reward.value,
         "done": result.done,
+        "policy_metrics": {
+            "task_reputation": rep,
+            "explore_rate": 0.30 if payload.stochastic_vendors else 0.0,
+        },
         "state": _ENV.state(),
         "observation": result.observation.model_dump(),
     }
@@ -278,6 +301,7 @@ async def feedback(payload: FeedbackRequest) -> Dict[str, Any]:
         "ok": True,
         "task": task,
         "same_pick": same_pick,
+        "task_reputation": _task_reputation(task),
         "applied": {
             "agent_vendor": payload.agent_vendor_id,
             "agent_signal": round(agent_signal, 4),
