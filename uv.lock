@@ -1,0 +1,40 @@
+version = 1
+revision = 1
+requires-python = ">=3.11"
+
+[[package]]
+name = "vendor-negotiator-env"
+version = "1.0.0"
+source = { virtual = "." }
+dependencies = [
+  { name = "openenv-core" },
+  { name = "openai" },
+  { name = "fastapi" },
+  { name = "uvicorn" },
+  { name = "pydantic" },
+]
+
+[[package]]
+name = "openenv-core"
+version = "0.2.0"
+source = { registry = "https://pypi.org/simple" }
+
+[[package]]
+name = "openai"
+version = "1.14.0"
+source = { registry = "https://pypi.org/simple" }
+
+[[package]]
+name = "fastapi"
+version = "0.111.0"
+source = { registry = "https://pypi.org/simple" }
+
+[[package]]
+name = "uvicorn"
+version = "0.30.0"
+source = { registry = "https://pypi.org/simple" }
+
+[[package]]
+name = "pydantic"
+version = "2.7.0"
+source = { registry = "https://pypi.org/simple" }
