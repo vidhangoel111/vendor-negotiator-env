@@ -654,6 +654,8 @@ let G = {
   steps: 0,
   budget: 5000,
   exp: 300,
+  running: false,
+  timer: null,
 };
 
 // ===== INIT =====
@@ -668,9 +670,52 @@ function init() {
   updMetrics();
 }
 
+// ===== UI TAB SWITCH =====
+function gTab(name, el) {
+  document.querySelectorAll(".panel").forEach(p => p.classList.remove("active"));
+  document.querySelectorAll(".tab").forEach(t => t.classList.remove("active"));
+
+  document.getElementById("tab-" + name).classList.add("active");
+  el.classList.add("active");
+}
+
+// ===== DUMMY UI FUNCTIONS (prevent crashes) =====
+function selectTask(level) {
+  console.log("Task selected:", level);
+}
+
+function setVendorMode(mode) {
+  console.log("Vendor mode:", mode);
+}
+
+function pauseResume() {
+  if (G.running) {
+    clearInterval(G.timer);
+    G.running = false;
+  } else {
+    runAgent();
+  }
+}
+
+function fullReset() {
+  clearInterval(G.timer);
+  G.running = false;
+  G.steps = 0;
+  init();
+}
+
+function confirmBest() {
+  console.log("Confirm best");
+}
+
+function toggleHuman() {
+  console.log("Toggle human override");
+}
+
 // ===== UI HELPERS =====
 function addAF(cls, txt) {
-  const el = document.getElementById("activityFeed");
+  const el = document.getElementById("af");
+  if (!el) return;
   el.innerHTML += `<div class="${cls}">${txt}</div>`;
   el.scrollTop = el.scrollHeight;
 }
@@ -681,33 +726,43 @@ function addRew(val, reason) {
 
 // ===== RENDER =====
 function renderVendors() {
-  const el = document.getElementById("vendors");
+  const el = document.getElementById("vtbody");
+  if (!el) return;
+
   el.innerHTML = "";
 
-  G.vendors.forEach(v => {
-    const btn = v.status === "active"
-      ? `<button onclick="negotiateV(${JSON.stringify(v).replace(/"/g, '&quot;')})">Negotiate</button>`
-      : `<span>${v.status}</span>`;
+  G.vendors.forEach((v, i) => {
+    const btn =
+      v.status === "active"
+        ? `<button onclick="negotiateV('${v.id}')">Negotiate</button>`
+        : v.status;
 
     el.innerHTML += `
-      <div class="vendor">
-        <b>${v.id}</b> | Quote: ₹${v.quote} | Status: ${v.status}
-        ${btn}
-      </div>
+      <tr>
+        <td>${i + 1}</td>
+        <td>${v.id}</td>
+        <td>₹${v.quote}</td>
+        <td>-</td>
+        <td>-</td>
+        <td>-</td>
+        <td>-</td>
+        <td>${btn}</td>
+        <td>-</td>
+      </tr>
     `;
   });
 }
 
 function updMetrics() {
-  document.getElementById("steps").innerText = G.steps;
+  const stepEl = document.getElementById("sg-step");
+  if (stepEl) stepEl.innerText = G.steps;
 }
 
-// ===== RL POLICY (FIXED) =====
+// ===== RL POLICY =====
 function agentPolicy() {
   const avail = G.vendors.filter(v => v.status === "active");
   if (avail.length === 0) return;
 
-  // epsilon-greedy (IMPORTANT FIX)
   const epsilon = 0.3;
   let target;
 
@@ -719,49 +774,43 @@ function agentPolicy() {
     );
   }
 
-  negotiateV(target);
+  negotiateV(target.id);
 }
 
 // ===== BACKEND CALL =====
-async function negotiateV(v) {
-  G.steps++;
+async function negotiateV(vendorId) {
+  const v = G.vendors.find(x => x.id === vendorId);
+  if (!v) return;
 
+  G.steps++;
   addAF("c-ag", `ACTION negotiate(${v.id})`);
 
   try {
     const res = await fetch("/step", {
       method: "POST",
       headers: {
-        "Content-Type": "application/json"
+        "Content-Type": "application/json",
       },
       body: JSON.stringify({
         action: "negotiate",
         vendor_id: v.id,
-        offer_price: G.exp
-      })
+        offer_price: G.exp,
+      }),
     });
 
     const data = await res.json();
 
     console.log("STEP RESPONSE:", data);
-    addAF("c-if", `STEP ACTION: ${JSON.stringify(data)}`);
+    addAF("c-if", JSON.stringify(data));
 
-    // ===== HANDLE RESPONSE =====
     if (data.status === "deal_accepted") {
       v.status = "done";
-      v.accepted = data.final_price || v.quote;
-
       addRew(data.reward || 0.1, "accepted");
-      addAF("c-ok", `DEAL ${v.id} ₹${v.accepted}`);
-
     } else if (data.status === "counter_offer") {
       addRew(data.reward || -0.01, "counter");
-      addAF("c-vn", `${v.id} countered`);
-
     } else {
       v.status = "rejected";
       addRew(data.reward || -0.05, "rejected");
-      addAF("c-fl", `${v.id} rejected`);
     }
 
   } catch (err) {
@@ -775,10 +824,25 @@ async function negotiateV(v) {
 
 // ===== AUTO RUN =====
 function runAgent() {
-  setInterval(() => {
+  if (G.running) return;
+
+  G.running = true;
+
+  G.timer = setInterval(() => {
     agentPolicy();
   }, 1500);
 }
+
+// ===== EXPOSE GLOBAL FUNCTIONS =====
+window.gTab = gTab;
+window.runAgent = runAgent;
+window.selectTask = selectTask;
+window.pauseResume = pauseResume;
+window.fullReset = fullReset;
+window.setVendorMode = setVendorMode;
+window.confirmBest = confirmBest;
+window.toggleHuman = toggleHuman;
+window.negotiateV = negotiateV;
 
 // ===== START =====
 init();
