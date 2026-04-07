@@ -48,12 +48,9 @@ async def step(action: ActionInput):
         "state": env.state(),
     }
 
-from fastapi.responses import HTMLResponse
+from fastapi.staticfiles import StaticFiles
 
-@app.get("/", response_class=HTMLResponse)
-def home():
-    with open("index.html", "r") as f:
-        return f.read()
+app.mount("/", StaticFiles(directory="ui", html=True), name="ui")
 
 # from __future__ import annotations
 
