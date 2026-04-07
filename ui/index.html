@@ -21,10 +21,10 @@
 </div>
 
 <div class="tabs">
-  <button class="tab active" onclick="gTab('env',this)">Task setup</button>
-  <button class="tab" onclick="gTab('agent',this)">Agent loop</button>
-  <button class="tab" onclick="gTab('vendors',this)">Vendor pool</button>
-  <button class="tab" onclick="gTab('results',this)" id="tab-results-btn">Results</button>
+  <button class="tab active" data-tab="env" onclick="gTab('env',this)">Task setup</button>
+  <button class="tab" data-tab="agent" onclick="gTab('agent',this)">Agent loop</button>
+  <button class="tab" data-tab="vendors" onclick="gTab('vendors',this)">Vendor pool</button>
+  <button class="tab" data-tab="results" onclick="gTab('results',this)" id="tab-results-btn">Results</button>
 </div>
 
 <div id="tab-env" class="panel active">
@@ -55,19 +55,19 @@
 
   <div class="slbl">Select task difficulty</div>
   <div class="task-cards">
-    <div class="tc tc-easy sel" id="tc-easy" onclick="selectTask('easy')">
+    <div class="tc tc-easy sel" id="tc-easy" data-task="easy" onclick="selectTask('easy')">
       <div class="tc-title">Easy task</div>
       <div class="tc-sub">Obvious optimal decision</div>
       <div><span class="tc-tag tag-e">Most vendors active</span><span class="tc-tag tag-e">Prices near expected</span><span class="tc-tag tag-e">Clear winner</span></div>
       <div style="margin-top:8px;font-size:10px;color:#0F6E56">Expected score: ~0.85–0.95</div>
     </div>
-    <div class="tc tc-med" id="tc-medium" onclick="selectTask('medium')">
+    <div class="tc tc-med" id="tc-medium" data-task="medium" onclick="selectTask('medium')">
       <div class="tc-title">Medium task</div>
       <div class="tc-sub">Trade-offs required</div>
       <div><span class="tc-tag tag-m">Some denials</span><span class="tc-tag tag-m">Cheap-but-slow vs fast-but-costly</span><span class="tc-tag tag-m">No obvious pick</span></div>
       <div style="margin-top:8px;font-size:10px;color:#534AB7">Expected score: ~0.65–0.82</div>
     </div>
-    <div class="tc tc-hard" id="tc-hard" onclick="selectTask('hard')">
+    <div class="tc tc-hard" id="tc-hard" data-task="hard" onclick="selectTask('hard')">
       <div class="tc-title">Hard task</div>
       <div class="tc-sub">No perfect answer</div>
       <div><span class="tc-tag tag-h">Most deny</span><span class="tc-tag tag-h">All prices above budget</span><span class="tc-tag tag-h">Quality vs cost conflict</span></div>
