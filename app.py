@@ -365,13 +365,12 @@ async def health() -> Dict[str, Any]:
 
 
 @app.get("/tasks")
-async def tasks() -> Dict[str, Any]:
-    catalog = _task_catalog()
-    return {"tasks": catalog}
+async def tasks() -> list[Dict[str, Any]]:
+    return _task_catalog()
 
 
 @app.get("/graders")
-async def graders() -> Dict[str, Any]:
+async def graders() -> list[Dict[str, Any]]:
     catalog = _task_catalog()
     out = []
     for task in catalog:
@@ -385,7 +384,7 @@ async def graders() -> Dict[str, Any]:
                 "payload": {"task": task["id"]},
             }
         )
-    return {"graders": out}
+    return out
 
 
 @app.get("/validate")
