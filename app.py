@@ -367,7 +367,7 @@ async def health() -> Dict[str, Any]:
 
 
 @app.get("/tasks")
-async def get_tasks(): -> list[Dict[str, Any]]:
+async def get_tasks() -> list[Dict[str, Any]]:
     return _task_catalog()
 
 
