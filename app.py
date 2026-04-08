@@ -320,24 +320,29 @@ def _task_catalog() -> list[Dict[str, Any]]:
 
     for t in TASKS:
         tid = t["id"]
+        grader_cfg = {
+            "type": "endpoint",
+            "id": tid,
+            "method": "POST",
+            "endpoint": f"/grade/{tid}",
+            "success_threshold": 0.4,
+        }
 
         catalog.append(
             {
                 "id": tid,
-                "task_id": tid,   # ✅ ADD THIS LINE (VERY IMPORTANT)
+                "task_id": tid,
 
                 "name": t.get("name", tid),
                 "description": t.get("description", f"Task {tid}"),
                 "difficulty": t.get("difficulty", tid),
                 "max_steps": int(t.get("max_steps", 24)),
-
-                "grader": {
-                    "type": "endpoint",
-                    "id": tid,
-                    "method": "POST",
-                    "endpoint": f"/grade/{tid}",
-                    "success_threshold": 0.4,
-                },
+                "grader": True,
+                "grader_id": tid,
+                "grader_endpoint": f"/grade/{tid}",
+                "grader_config": grader_cfg,
+                "grading_function": grader_cfg,
+                "graders": [grader_cfg],
             }
         )
 
@@ -397,7 +402,33 @@ async def api_graders_alias():
             "endpoint": "/grade/hard",
         },
     ]
-    # return out
+
+
+@app.get("/graders")
+async def graders_alias():
+    return [
+        {
+            "id": "easy",
+            "task_id": "easy",
+            "type": "endpoint",
+            "method": "POST",
+            "endpoint": "/grade/easy",
+        },
+        {
+            "id": "medium",
+            "task_id": "medium",
+            "type": "endpoint",
+            "method": "POST",
+            "endpoint": "/grade/medium",
+        },
+        {
+            "id": "hard",
+            "task_id": "hard",
+            "type": "endpoint",
+            "method": "POST",
+            "endpoint": "/grade/hard",
+        },
+    ]
 
 
 @app.get("/validate")
@@ -408,7 +439,7 @@ async def validate() -> Dict[str, Any]:
         "min_3_tasks": len(catalog) >= 3,
         "tasks_have_graders": all_with_graders,
         "all_tasks_have_graders": all_with_graders,
-        "grader_endpoint_present": all(bool(t.get("grader")) for t in catalog),
+        "grader_endpoint_present": all(bool(t.get("grader_endpoint")) for t in catalog),
         "grader_registry_valid": has_required_graders(),
     }
     return {
