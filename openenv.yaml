@@ -225,6 +225,14 @@ api_endpoints:
   health:
     path: /health
     method: GET
+  manifest:
+    path: /manifest
+    method: GET
+    description: JSON view of openenv manifest for validator tooling
+  openenv_yaml:
+    path: /openenv.yaml
+    method: GET
+    description: Raw YAML manifest exposed directly by app
   reset:
     path: /reset
     method: POST
@@ -281,6 +289,8 @@ api_endpoints:
 
 endpoints:
   health: GET /health
+  manifest: GET /manifest
+  openenv_yaml: GET /openenv.yaml
   reset: POST /reset
   step: POST /step
   state: GET /state
