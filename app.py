@@ -316,27 +316,27 @@ async def _grade_task(task: str, runs: int, seed: Optional[int], stochastic_vend
 
 
 def _task_catalog() -> list[Dict[str, Any]]:
-    catalog: list[Dict[str, Any]] = []
+    catalog = []
 
     for t in TASKS:
         tid = t["id"]
-        endpoint = f"/grade/{tid}"
 
         catalog.append(
             {
                 "id": tid,
+                "task_id": tid,   # ✅ ADD THIS LINE (VERY IMPORTANT)
+
                 "name": t.get("name", tid),
                 "description": t.get("description", f"Task {tid}"),
                 "difficulty": t.get("difficulty", tid),
                 "max_steps": int(t.get("max_steps", 24)),
 
-                # ✅ ONLY THIS GRADER FIELD
                 "grader": {
                     "type": "endpoint",
                     "id": tid,
                     "method": "POST",
-                    "endpoint": endpoint,
-                    "success_threshold": PASS_THRESHOLD,
+                    "endpoint": f"/grade/{tid}",
+                    "success_threshold": 0.4,
                 },
             }
         )
@@ -371,18 +371,31 @@ async def tasks() -> list[Dict[str, Any]]:
     return _task_catalog()
 
 
+
 @app.get("/graders")
-@app.get("/graders")
-async def graders() -> list[Dict[str, Any]]:
+def get_graders():
     return [
         {
-            "id": tid,
-            "task_id": tid,
+            "id": "easy",
+            "task_id": "easy",
             "type": "endpoint",
             "method": "POST",
-            "endpoint": f"/grade/{tid}",
-        }
-        for tid in task_ids()
+            "endpoint": "/grade/easy",
+        },
+        {
+            "id": "medium",
+            "task_id": "medium",
+            "type": "endpoint",
+            "method": "POST",
+            "endpoint": "/grade/medium",
+        },
+        {
+            "id": "hard",
+            "task_id": "hard",
+            "type": "endpoint",
+            "method": "POST",
+            "endpoint": "/grade/hard",
+        },
     ]
     # return out
 
