@@ -317,29 +317,30 @@ async def _grade_task(task: str, runs: int, seed: Optional[int], stochastic_vend
 
 def _task_catalog() -> list[Dict[str, Any]]:
     catalog: list[Dict[str, Any]] = []
+
     for t in TASKS:
-        tid = str(t["id"])
+        tid = t["id"]
         endpoint = f"/grade/{tid}"
+
         catalog.append(
             {
                 "id": tid,
-                "task_id": tid,
                 "name": t.get("name", tid),
                 "description": t.get("description", f"Task {tid}"),
                 "difficulty": t.get("difficulty", tid),
                 "max_steps": int(t.get("max_steps", 24)),
-                "grader": bool(t.get("grader", True)),
-                "grader_id": tid,
-                "grader_endpoint": endpoint,
+
+                # ✅ ONLY THIS GRADER FIELD
                 "grader": {
-    "type": "endpoint",
-    "id": tid,
-    "method": "POST",
-    "endpoint": endpoint,
-    "success_threshold": PASS_THRESHOLD,
-},
+                    "type": "endpoint",
+                    "id": tid,
+                    "method": "POST",
+                    "endpoint": endpoint,
+                    "success_threshold": PASS_THRESHOLD,
+                },
             }
         )
+
     return catalog
 
 
