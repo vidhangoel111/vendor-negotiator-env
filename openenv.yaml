@@ -279,6 +279,18 @@ api_endpoints:
     method: GET
     description: Explicit list of grader endpoints mapped to task IDs
 
+endpoints:
+  health: GET /health
+  reset: POST /reset
+  step: POST /step
+  state: GET /state
+  tasks: GET /tasks
+  graders: GET /graders
+  grade_easy: POST /grade/easy
+  grade_medium: POST /grade/medium
+  grade_hard: POST /grade/hard
+  grade_task: POST /grade/{task_id}
+
 environment_variables:
   - name: API_BASE_URL
     required: false

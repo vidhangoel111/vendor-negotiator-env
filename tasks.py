@@ -29,34 +29,31 @@ GRADERS = {
 }
 
 
-TASKS: List[Dict[str, Any]] = [
+TASKS = [
     {
         "id": "easy",
         "name": "Easy Negotiation Task",
+        "description": "Basic negotiation",
         "difficulty": "easy",
         "max_steps": 24,
-        "grader": True,
-        "grader_id": "easy",
-        "grader_endpoint": "/grade/easy",
+        "grader": True
     },
     {
         "id": "medium",
         "name": "Medium Negotiation Task",
+        "description": "Intermediate negotiation",
         "difficulty": "medium",
         "max_steps": 24,
-        "grader": True,
-        "grader_id": "medium",
-        "grader_endpoint": "/grade/medium",
+        "grader": True
     },
     {
         "id": "hard",
         "name": "Hard Negotiation Task",
+        "description": "Complex negotiation",
         "difficulty": "hard",
         "max_steps": 24,
-        "grader": True,
-        "grader_id": "hard",
-        "grader_endpoint": "/grade/hard",
-    },
+        "grader": True
+    }
 ]
 
 
