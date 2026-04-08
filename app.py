@@ -7,9 +7,10 @@ from typing import Any, Dict, Optional
 
 from fastapi import FastAPI, HTTPException, Request
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import RedirectResponse
+from fastapi.responses import JSONResponse, PlainTextResponse, RedirectResponse
 from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel, Field
+import yaml
 
 from my_env_v4 import MyEnvV4Action, MyEnvV4Env
 
@@ -51,6 +52,7 @@ app = FastAPI(title="Vendor Negotiation RL Environment", version="1.6.0")
 BASE_DIR = Path(__file__).resolve().parent
 UI_DIR = BASE_DIR / "ui"
 PREF_PATH = BASE_DIR / "vendor_feedback_q.json"
+OPENENV_PATH = BASE_DIR / "openenv.yaml"
 
 app.add_middleware(
     CORSMiddleware,
@@ -371,6 +373,21 @@ async def health() -> Dict[str, Any]:
     }
 
 
+@app.get("/openenv.yaml")
+async def openenv_manifest() -> PlainTextResponse:
+    if not OPENENV_PATH.exists():
+        raise HTTPException(status_code=404, detail="openenv.yaml not found")
+    return PlainTextResponse(content=OPENENV_PATH.read_text(encoding="utf-8"), media_type="text/yaml")
+
+
+@app.get("/manifest")
+async def manifest_json() -> JSONResponse:
+    if not OPENENV_PATH.exists():
+        raise HTTPException(status_code=404, detail="openenv.yaml not found")
+    data = yaml.safe_load(OPENENV_PATH.read_text(encoding="utf-8"))
+    return JSONResponse(content=data)
+
+
 @app.get("/tasks")
 async def get_tasks() -> list[Dict[str, Any]]:
     return _task_catalog()
@@ -676,6 +693,16 @@ async def api_feedback_alias(payload: FeedbackRequest) -> Dict[str, Any]:
 @app.get("/api/tasks")
 async def api_tasks_alias():
     return _task_catalog()
+
+
+@app.get("/api/openenv.yaml")
+async def api_openenv_manifest_alias() -> PlainTextResponse:
+    return await openenv_manifest()
+
+
+@app.get("/api/manifest")
+async def api_manifest_json_alias() -> JSONResponse:
+    return await manifest_json()
 
 
 @app.post("/grader")

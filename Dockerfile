@@ -18,6 +18,9 @@ RUN pip install --no-cache-dir -r requirements.txt
 COPY my_env_v4.py .
 COPY inference.py .
 COPY app.py .
+COPY tasks.py .
+COPY grader.py .
+COPY openenv.yaml .
 COPY ui ./ui
 
 # Environment defaults — all overridable
