@@ -323,7 +323,9 @@ def _task_catalog() -> list[Dict[str, Any]]:
         catalog.append(
             {
                 "id": tid,
+                "task_id": tid,
                 "name": t.get("name", tid),
+                "description": t.get("description", f"Task {tid}"),
                 "difficulty": t.get("difficulty", tid),
                 "max_steps": int(t.get("max_steps", 24)),
                 "grader": bool(t.get("grader", True)),
@@ -365,7 +367,7 @@ async def health() -> Dict[str, Any]:
 @app.get("/tasks")
 async def tasks() -> Dict[str, Any]:
     catalog = _task_catalog()
-    return {"tasks": catalog, "count": len(catalog)}
+    return {"tasks": catalog}
 
 
 @app.get("/graders")
@@ -383,15 +385,17 @@ async def graders() -> Dict[str, Any]:
                 "payload": {"task": task["id"]},
             }
         )
-    return {"graders": out, "count": len(out)}
+    return {"graders": out}
 
 
 @app.get("/validate")
 async def validate() -> Dict[str, Any]:
     catalog = _task_catalog()
+    all_with_graders = all(bool(t.get("grader")) for t in catalog)
     checks = {
         "min_3_tasks": len(catalog) >= 3,
-        "tasks_have_graders": all(bool(t.get("grader")) for t in catalog),
+        "tasks_have_graders": all_with_graders,
+        "all_tasks_have_graders": all_with_graders,
         "grader_endpoint_present": all(bool(t.get("grader_endpoint")) for t in catalog),
         "grader_registry_valid": has_required_graders(),
     }
@@ -691,6 +695,17 @@ async def grade_by_task_alias(task_id: str, request: Request) -> Dict[str, Any]:
     return await grader_by_task(task_id, request)
 
 
+@app.get("/grade/{task_id}")
+async def grade_by_task_get(task_id: str, runs: int = 3, seed: Optional[int] = None, stochastic_vendors: bool = True) -> Dict[str, Any]:
+    safe_runs = min(max(int(runs), 1), 20)
+    return await _grade_task(
+        task=_normalize_task(task_id),
+        runs=safe_runs,
+        seed=seed,
+        stochastic_vendors=stochastic_vendors,
+    )
+
+
 @app.get("/grader/{task_id}")
 async def grader_by_task_get(task_id: str, runs: int = 3, seed: Optional[int] = None, stochastic_vendors: bool = True) -> Dict[str, Any]:
     safe_runs = min(max(int(runs), 1), 20)
@@ -780,6 +795,11 @@ async def api_grader_by_task_alias(task_id: str, request: Request) -> Dict[str, 
 @app.post("/api/grade/{task_id}")
 async def api_grade_by_task_alias(task_id: str, request: Request) -> Dict[str, Any]:
     return await grade_by_task_alias(task_id, request)
+
+
+@app.get("/api/grade/{task_id}")
+async def api_grade_by_task_get_alias(task_id: str, runs: int = 3, seed: Optional[int] = None, stochastic_vendors: bool = True) -> Dict[str, Any]:
+    return await grade_by_task_get(task_id, runs=runs, seed=seed, stochastic_vendors=stochastic_vendors)
 
 
 @app.post("/api/baseline")
