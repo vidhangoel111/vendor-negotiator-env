@@ -331,12 +331,13 @@ def _task_catalog() -> list[Dict[str, Any]]:
                 "grader": bool(t.get("grader", True)),
                 "grader_id": tid,
                 "grader_endpoint": endpoint,
-                "grading_function": {
-                    "type": "endpoint",
-                    "method": "POST",
-                    "endpoint": endpoint,
-                    "success_threshold": PASS_THRESHOLD,
-                },
+                "grader": {
+    "type": "endpoint",
+    "id": tid,
+    "method": "POST",
+    "endpoint": endpoint,
+    "success_threshold": PASS_THRESHOLD,
+},
             }
         )
     return catalog
@@ -370,21 +371,19 @@ async def tasks() -> list[Dict[str, Any]]:
 
 
 @app.get("/graders")
+@app.get("/graders")
 async def graders() -> list[Dict[str, Any]]:
-    catalog = _task_catalog()
-    out = []
-    for task in catalog:
-        grader = task.get("grader", {})
-        out.append(
-            {
-                "id": f"{task['id']}_grader",
-                "task_id": task["id"],
-                "method": "POST",
-                "endpoint": task.get("grader_endpoint", f"/grade/{task['id']}"),
-                "payload": {"task": task["id"]},
-            }
-        )
-    return out
+    return [
+        {
+            "id": tid,
+            "task_id": tid,
+            "type": "endpoint",
+            "method": "POST",
+            "endpoint": f"/grade/{tid}",
+        }
+        for tid in task_ids()
+    ]
+    # return out
 
 
 @app.get("/validate")
