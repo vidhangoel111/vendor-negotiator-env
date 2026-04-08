@@ -279,7 +279,7 @@ def _task_catalog() -> list[Dict[str, Any]]:
             "difficulty": "easy",
             "max_steps": 24,
             "grader": True,
-            "grader_endpoint": "/grader",
+            "grader_endpoint": "/grader/easy",
             "grader_payload": {"task": "easy"},
         },
         {
@@ -288,7 +288,7 @@ def _task_catalog() -> list[Dict[str, Any]]:
             "difficulty": "medium",
             "max_steps": 24,
             "grader": True,
-            "grader_endpoint": "/grader",
+            "grader_endpoint": "/grader/medium",
             "grader_payload": {"task": "medium"},
         },
         {
@@ -297,7 +297,7 @@ def _task_catalog() -> list[Dict[str, Any]]:
             "difficulty": "hard",
             "max_steps": 24,
             "grader": True,
-            "grader_endpoint": "/grader",
+            "grader_endpoint": "/grader/hard",
             "grader_payload": {"task": "hard"},
         },
     ]
@@ -598,6 +598,37 @@ async def grader_get(task: str = "easy", runs: int = 3, seed: Optional[int] = No
     return await _grade_task(task=task, runs=safe_runs, seed=seed, stochastic_vendors=stochastic_vendors)
 
 
+@app.post("/grader/{task_id}")
+async def grader_by_task(task_id: str, request: Request) -> Dict[str, Any]:
+    payload: Optional[Dict[str, Any]]
+    try:
+        payload = await request.json()
+        if not isinstance(payload, dict):
+            payload = {}
+    except Exception:
+        payload = {}
+
+    payload["task"] = _normalize_task(task_id)
+    cfg = GraderRequest.model_validate(payload)
+    return await _grade_task(
+        task=cfg.task,
+        runs=cfg.runs,
+        seed=cfg.seed,
+        stochastic_vendors=cfg.stochastic_vendors,
+    )
+
+
+@app.get("/grader/{task_id}")
+async def grader_by_task_get(task_id: str, runs: int = 3, seed: Optional[int] = None, stochastic_vendors: bool = True) -> Dict[str, Any]:
+    safe_runs = min(max(int(runs), 1), 20)
+    return await _grade_task(
+        task=_normalize_task(task_id),
+        runs=safe_runs,
+        seed=seed,
+        stochastic_vendors=stochastic_vendors,
+    )
+
+
 @app.post("/baseline")
 async def baseline(request: Request) -> Dict[str, Any]:
     payload: Optional[Dict[str, Any]]
@@ -661,6 +692,11 @@ async def baseline_get(runs: int = 3, seed: Optional[int] = None, stochastic_ven
 @app.post("/api/grader")
 async def api_grader_alias(request: Request) -> Dict[str, Any]:
     return await grader(request)
+
+
+@app.post("/api/grader/{task_id}")
+async def api_grader_by_task_alias(task_id: str, request: Request) -> Dict[str, Any]:
+    return await grader_by_task(task_id, request)
 
 
 @app.post("/api/baseline")

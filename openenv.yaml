@@ -23,16 +23,20 @@ tasks:
     max_steps: 24
     expected_score_range: [0.85, 0.95]
     grader:
-      endpoint: /grader
+      endpoint: /grader/easy
       method: POST
       payload:
         task: easy
     graders:
       - type: endpoint
-        endpoint: /grader
+        endpoint: /grader/easy
         method: POST
         payload:
           task: easy
+    grading_function:
+      type: endpoint
+      endpoint: /grader/easy
+      success_threshold: 0.40
 
   - id: medium
     name: Medium Negotiation Task
@@ -44,16 +48,20 @@ tasks:
     max_steps: 24
     expected_score_range: [0.65, 0.82]
     grader:
-      endpoint: /grader
+      endpoint: /grader/medium
       method: POST
       payload:
         task: medium
     graders:
       - type: endpoint
-        endpoint: /grader
+        endpoint: /grader/medium
         method: POST
         payload:
           task: medium
+    grading_function:
+      type: endpoint
+      endpoint: /grader/medium
+      success_threshold: 0.40
 
   - id: hard
     name: Hard Negotiation Task
@@ -65,16 +73,20 @@ tasks:
     max_steps: 24
     expected_score_range: [0.42, 0.68]
     grader:
-      endpoint: /grader
+      endpoint: /grader/hard
       method: POST
       payload:
         task: hard
     graders:
       - type: endpoint
-        endpoint: /grader
+        endpoint: /grader/hard
         method: POST
         payload:
           task: hard
+    grading_function:
+      type: endpoint
+      endpoint: /grader/hard
+      success_threshold: 0.40
 
 # Observation and Action spaces
 observation_space:
@@ -198,6 +210,20 @@ grading_function:
     4. Clamp to [0, 1].
     5. Success threshold: score >= 0.40.
 
+graders:
+  - id: easy_grader
+    task_id: easy
+    endpoint: /grader/easy
+    method: POST
+  - id: medium_grader
+    task_id: medium
+    endpoint: /grader/medium
+    method: POST
+  - id: hard_grader
+    task_id: hard
+    endpoint: /grader/hard
+    method: POST
+
 api_endpoints:
   health:
     path: /health
@@ -215,6 +241,18 @@ api_endpoints:
     path: /grader
     method: POST
     description: Grade one task (easy/medium/hard) over configurable runs
+  grader_easy:
+    path: /grader/easy
+    method: POST
+    description: Dedicated grader endpoint for easy task
+  grader_medium:
+    path: /grader/medium
+    method: POST
+    description: Dedicated grader endpoint for medium task
+  grader_hard:
+    path: /grader/hard
+    method: POST
+    description: Dedicated grader endpoint for hard task
   baseline:
     path: /baseline
     method: POST
