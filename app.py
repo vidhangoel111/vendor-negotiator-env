@@ -7,10 +7,9 @@ from typing import Any, Dict, Optional
 
 from fastapi import FastAPI, HTTPException, Request
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import JSONResponse, PlainTextResponse, RedirectResponse
+from fastapi.responses import RedirectResponse
 from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel, Field
-import yaml
 
 from my_env_v4 import MyEnvV4Action, MyEnvV4Env
 
@@ -52,7 +51,6 @@ app = FastAPI(title="Vendor Negotiation RL Environment", version="1.6.0")
 BASE_DIR = Path(__file__).resolve().parent
 UI_DIR = BASE_DIR / "ui"
 PREF_PATH = BASE_DIR / "vendor_feedback_q.json"
-OPENENV_PATH = BASE_DIR / "openenv.yaml"
 
 app.add_middleware(
     CORSMiddleware,
@@ -322,34 +320,26 @@ def _task_catalog() -> list[Dict[str, Any]]:
 
     for t in TASKS:
         tid = t["id"]
-        grader_cfg = {
-            "type": "endpoint",
+
+        catalog.append({
             "id": tid,
-            "method": "POST",
-            "endpoint": f"/grade/{tid}",
-            "success_threshold": 0.4,
-        }
+            "task_id": tid,   # ✅ REQUIRED
+            "name": t.get("name", tid),
+            "description": t.get("description", f"Task {tid}"),
+            "difficulty": t.get("difficulty", tid),
+            "max_steps": int(t.get("max_steps", 24)),
 
-        catalog.append(
-            {
+            # ✅ THIS BLOCK IS THE MOST IMPORTANT
+            "grader": {
+                "type": "endpoint",
                 "id": tid,
-                "task_id": tid,
-
-                "name": t.get("name", tid),
-                "description": t.get("description", f"Task {tid}"),
-                "difficulty": t.get("difficulty", tid),
-                "max_steps": int(t.get("max_steps", 24)),
-                "grader": True,
-                "grader_id": tid,
-                "grader_endpoint": f"/grade/{tid}",
-                "grader_config": grader_cfg,
-                "grading_function": grader_cfg,
-                "graders": [grader_cfg],
+                "method": "POST",
+                "endpoint": f"/grade/{tid}",
+                "success_threshold": 0.4,
             }
-        )
+        })
 
     return catalog
-
 
 _load_pref()
 
@@ -373,23 +363,8 @@ async def health() -> Dict[str, Any]:
     }
 
 
-@app.get("/openenv.yaml")
-async def openenv_manifest() -> PlainTextResponse:
-    if not OPENENV_PATH.exists():
-        raise HTTPException(status_code=404, detail="openenv.yaml not found")
-    return PlainTextResponse(content=OPENENV_PATH.read_text(encoding="utf-8"), media_type="text/yaml")
-
-
-@app.get("/manifest")
-async def manifest_json() -> JSONResponse:
-    if not OPENENV_PATH.exists():
-        raise HTTPException(status_code=404, detail="openenv.yaml not found")
-    data = yaml.safe_load(OPENENV_PATH.read_text(encoding="utf-8"))
-    return JSONResponse(content=data)
-
-
 @app.get("/tasks")
-async def get_tasks() -> list[Dict[str, Any]]:
+async def get_tasks():
     return _task_catalog()
 
 
@@ -419,33 +394,7 @@ async def api_graders_alias():
             "endpoint": "/grade/hard",
         },
     ]
-
-
-@app.get("/graders")
-async def graders_alias():
-    return [
-        {
-            "id": "easy",
-            "task_id": "easy",
-            "type": "endpoint",
-            "method": "POST",
-            "endpoint": "/grade/easy",
-        },
-        {
-            "id": "medium",
-            "task_id": "medium",
-            "type": "endpoint",
-            "method": "POST",
-            "endpoint": "/grade/medium",
-        },
-        {
-            "id": "hard",
-            "task_id": "hard",
-            "type": "endpoint",
-            "method": "POST",
-            "endpoint": "/grade/hard",
-        },
-    ]
+    # return out
 
 
 @app.get("/validate")
@@ -456,7 +405,7 @@ async def validate() -> Dict[str, Any]:
         "min_3_tasks": len(catalog) >= 3,
         "tasks_have_graders": all_with_graders,
         "all_tasks_have_graders": all_with_graders,
-        "grader_endpoint_present": all(bool(t.get("grader_endpoint")) for t in catalog),
+        "grader_endpoint_present": all(bool(t.get("grader")) for t in catalog),
         "grader_registry_valid": has_required_graders(),
     }
     return {
@@ -691,18 +640,13 @@ async def api_feedback_alias(payload: FeedbackRequest) -> Dict[str, Any]:
 
 
 @app.get("/api/tasks")
-async def api_tasks_alias():
-    return _task_catalog()
+async def api_tasks_alias() -> Dict[str, Any]:
+    return await tasks()
 
 
-@app.get("/api/openenv.yaml")
-async def api_openenv_manifest_alias() -> PlainTextResponse:
-    return await openenv_manifest()
-
-
-@app.get("/api/manifest")
-async def api_manifest_json_alias() -> JSONResponse:
-    return await manifest_json()
+@app.get("/api/graders")
+async def api_graders_alias() -> Dict[str, Any]:
+    return await graders()
 
 
 @app.post("/grader")
