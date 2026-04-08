@@ -39,9 +39,12 @@ This is an **RL environment** with two policy modes for testing:
 | Method | Route | Description |
 |--------|-------|-------------|
 | GET | `/health` | Server health check — returns name, version, tasks |
+| GET | `/tasks` | Task registry with grader metadata |
+| GET | `/graders` | Explicit grader list for all tasks |
 | POST | `/reset` | Start a new episode — returns initial observation |
 | POST | `/step` | Execute one action — returns obs, reward, done, info |
 | GET | `/state` | Get current environment state snapshot |
+| POST | `/grade/{task_id}` | Primary grader endpoint for `easy`/`medium`/`hard` |
 | POST | `/agent-step` | Heuristic agent takes one step (used by UI demo) |
 
 ### Reset Request
@@ -97,6 +100,7 @@ vendor-negotiator-env/
 │   ├── style.css
 │   └── app.js
 ├── my_env_v4.py         # Core RL environment (reset/step/state)
+├── tasks.py             # Task and grader registry (3 tasks with graders)
 ├── app.py               # FastAPI server — all API routes
 ├── rl_policy.py         # Tabular Q-learning policy (reward/penalty learning)
 ├── inference.py         # Episode runner ([START]/[STEP]/[END] logs)

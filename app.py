@@ -12,8 +12,9 @@ from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel, Field
 
 from my_env_v4 import MyEnvV4Action, MyEnvV4Env
+from tasks import GRADERS, PASS_THRESHOLD, TASKS, has_required_graders, task_ids
 
-app = FastAPI(title="Vendor Negotiation RL Environment", version="1.5.0")
+app = FastAPI(title="Vendor Negotiation RL Environment", version="1.6.0")
 
 BASE_DIR = Path(__file__).resolve().parent
 UI_DIR = BASE_DIR / "ui"
@@ -191,7 +192,17 @@ def _policy_metrics(task: str, stochastic: bool) -> Dict[str, float]:
 
 
 def _normalize_task(task: str) -> str:
-    return task if task in ("easy", "medium", "hard") else "easy"
+    raw = (task or "").strip().lower()
+    alias_map = {
+        "1": "easy",
+        "2": "medium",
+        "3": "hard",
+        "task_1": "easy",
+        "task_2": "medium",
+        "task_3": "hard",
+    }
+    normalized = alias_map.get(raw, raw)
+    return normalized if normalized in set(task_ids()) else "easy"
 
 
 def _heuristic_action(obs: Any) -> MyEnvV4Action:
@@ -265,57 +276,36 @@ async def _grade_task(task: str, runs: int, seed: Optional[int], stochastic_vend
         "best_score": best_score,
         "worst_score": worst_score,
         "success_rate": success_rate,
-        "pass_threshold": 0.40,
-        "pass": avg_score >= 0.40,
+        "pass_threshold": PASS_THRESHOLD,
+        "score": avg_score,
+        "pass": avg_score >= PASS_THRESHOLD,
         "episodes": episodes,
     }
 
 
 def _task_catalog() -> list[Dict[str, Any]]:
-    easy_grader = {"type": "endpoint", "method": "POST", "endpoint": "/grader/easy", "payload": {"task": "easy"}}
-    medium_grader = {"type": "endpoint", "method": "POST", "endpoint": "/grader/medium", "payload": {"task": "medium"}}
-    hard_grader = {"type": "endpoint", "method": "POST", "endpoint": "/grader/hard", "payload": {"task": "hard"}}
-    return [
-        {
-            "id": "easy",
-            "task_id": "easy",
-            "name": "Easy Negotiation Task",
-            "difficulty": "easy",
-            "max_steps": 24,
-            "has_grader": True,
-            "grader": easy_grader,
-            "graders": [easy_grader],
-            "grading_function": easy_grader,
-            "grader_endpoint": "/grader/easy",
-            "grader_payload": {"task": "easy"},
-        },
-        {
-            "id": "medium",
-            "task_id": "medium",
-            "name": "Medium Negotiation Task",
-            "difficulty": "medium",
-            "max_steps": 24,
-            "has_grader": True,
-            "grader": medium_grader,
-            "graders": [medium_grader],
-            "grading_function": medium_grader,
-            "grader_endpoint": "/grader/medium",
-            "grader_payload": {"task": "medium"},
-        },
-        {
-            "id": "hard",
-            "task_id": "hard",
-            "name": "Hard Negotiation Task",
-            "difficulty": "hard",
-            "max_steps": 24,
-            "has_grader": True,
-            "grader": hard_grader,
-            "graders": [hard_grader],
-            "grading_function": hard_grader,
-            "grader_endpoint": "/grader/hard",
-            "grader_payload": {"task": "hard"},
-        },
-    ]
+    catalog: list[Dict[str, Any]] = []
+    for t in TASKS:
+        tid = str(t["id"])
+        endpoint = f"/grade/{tid}"
+        catalog.append(
+            {
+                "id": tid,
+                "name": t.get("name", tid),
+                "difficulty": t.get("difficulty", tid),
+                "max_steps": int(t.get("max_steps", 24)),
+                "grader": bool(t.get("grader", True)),
+                "grader_id": tid,
+                "grader_endpoint": endpoint,
+                "grading_function": {
+                    "type": "endpoint",
+                    "method": "POST",
+                    "endpoint": endpoint,
+                    "success_threshold": PASS_THRESHOLD,
+                },
+            }
+        )
+    return catalog
 
 
 _load_pref()
@@ -331,10 +321,11 @@ async def health() -> Dict[str, Any]:
     return {
         "status": "ok",
         "name": "vendor-negotiation-env",
-        "version": "1.5.0",
-        "tasks": ["easy", "medium", "hard"],
+        "version": "1.6.0",
+        "tasks": task_ids(),
+        "tasks_with_graders": len(task_ids()),
         "tasks_endpoint": "/tasks",
-        "grader_endpoint": "/grader",
+        "grader_endpoint": "/grade/{task_id}",
         "baseline_endpoint": "/baseline",
     }
 
@@ -355,9 +346,9 @@ async def graders() -> Dict[str, Any]:
             {
                 "id": f"{task['id']}_grader",
                 "task_id": task["id"],
-                "method": grader.get("method", "POST"),
-                "endpoint": grader.get("endpoint"),
-                "payload": grader.get("payload", {"task": task["id"]}),
+                "method": "POST",
+                "endpoint": task.get("grader_endpoint", f"/grade/{task['id']}"),
+                "payload": {"task": task["id"]},
             }
         )
     return {"graders": out, "count": len(out)}
@@ -370,6 +361,7 @@ async def validate() -> Dict[str, Any]:
         "min_3_tasks": len(catalog) >= 3,
         "tasks_have_graders": all(bool(t.get("grader")) for t in catalog),
         "grader_endpoint_present": all(bool(t.get("grader_endpoint")) for t in catalog),
+        "grader_registry_valid": has_required_graders(),
     }
     return {
         "valid": all(checks.values()),
@@ -707,8 +699,8 @@ async def baseline(request: Request) -> Dict[str, Any]:
         "stochastic_vendors": cfg.stochastic_vendors,
         "tasks": task_scores,
         "overall_avg_score": overall_avg,
-        "pass_threshold": 0.40,
-        "pass": overall_avg >= 0.40,
+        "pass_threshold": PASS_THRESHOLD,
+        "pass": overall_avg >= PASS_THRESHOLD,
     }
 
 
@@ -733,8 +725,8 @@ async def baseline_get(runs: int = 3, seed: Optional[int] = None, stochastic_ven
         "stochastic_vendors": stochastic_vendors,
         "tasks": task_scores,
         "overall_avg_score": overall_avg,
-        "pass_threshold": 0.40,
-        "pass": overall_avg >= 0.40,
+        "pass_threshold": PASS_THRESHOLD,
+        "pass": overall_avg >= PASS_THRESHOLD,
     }
 
 

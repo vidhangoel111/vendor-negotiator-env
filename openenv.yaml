@@ -23,21 +23,13 @@ tasks:
     reward_range: [-1.0, 1.0]
     max_steps: 24
     expected_score_range: [0.85, 0.95]
-    grader:
-      type: endpoint
-      endpoint: /grader/easy
-      method: POST
-      payload:
-        task: easy
-    graders:
-      - type: endpoint
-        endpoint: /grader/easy
-        method: POST
-        payload:
-          task: easy
+    grader: true
+    grader_id: easy
+    grader_endpoint: /grade/easy
     grading_function:
       type: endpoint
-      endpoint: /grader/easy
+      endpoint: /grade/easy
+      method: POST
       success_threshold: 0.40
 
   - id: medium
@@ -50,21 +42,13 @@ tasks:
     reward_range: [-1.0, 1.0]
     max_steps: 24
     expected_score_range: [0.65, 0.82]
-    grader:
-      type: endpoint
-      endpoint: /grader/medium
-      method: POST
-      payload:
-        task: medium
-    graders:
-      - type: endpoint
-        endpoint: /grader/medium
-        method: POST
-        payload:
-          task: medium
+    grader: true
+    grader_id: medium
+    grader_endpoint: /grade/medium
     grading_function:
       type: endpoint
-      endpoint: /grader/medium
+      endpoint: /grade/medium
+      method: POST
       success_threshold: 0.40
 
   - id: hard
@@ -77,21 +61,13 @@ tasks:
     reward_range: [-1.0, 1.0]
     max_steps: 24
     expected_score_range: [0.42, 0.68]
-    grader:
-      type: endpoint
-      endpoint: /grader/hard
-      method: POST
-      payload:
-        task: hard
-    graders:
-      - type: endpoint
-        endpoint: /grader/hard
-        method: POST
-        payload:
-          task: hard
+    grader: true
+    grader_id: hard
+    grader_endpoint: /grade/hard
     grading_function:
       type: endpoint
-      endpoint: /grader/hard
+      endpoint: /grade/hard
+      method: POST
       success_threshold: 0.40
 
 # Observation and Action spaces
@@ -219,15 +195,15 @@ grading_function:
 graders:
   - id: easy_grader
     task_id: easy
-    endpoint: /grader/easy
+    endpoint: /grade/easy
     method: POST
   - id: medium_grader
     task_id: medium
-    endpoint: /grader/medium
+    endpoint: /grade/medium
     method: POST
   - id: hard_grader
     task_id: hard
-    endpoint: /grader/hard
+    endpoint: /grade/hard
     method: POST
 
 api_endpoints:
@@ -250,7 +226,7 @@ api_endpoints:
   grade:
     path: /grade
     method: POST
-    description: Alias for /grader
+    description: Primary grading endpoint
   grader_easy:
     path: /grader/easy
     method: POST
@@ -258,7 +234,7 @@ api_endpoints:
   grade_easy:
     path: /grade/easy
     method: POST
-    description: Alias for easy task grader
+    description: Primary easy task grader endpoint
   grader_medium:
     path: /grader/medium
     method: POST
@@ -266,7 +242,7 @@ api_endpoints:
   grade_medium:
     path: /grade/medium
     method: POST
-    description: Alias for medium task grader
+    description: Primary medium task grader endpoint
   grader_hard:
     path: /grader/hard
     method: POST
@@ -274,7 +250,7 @@ api_endpoints:
   grade_hard:
     path: /grade/hard
     method: POST
-    description: Alias for hard task grader
+    description: Primary hard task grader endpoint
   baseline:
     path: /baseline
     method: POST

@@ -12,3 +12,5 @@ hf_token*
 openai_key*
 __pycache__/
 *.pyc
+q_policy.json
+vendor_feedback_q.json
