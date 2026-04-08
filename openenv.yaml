@@ -22,6 +22,11 @@ tasks:
     reward_range: [-1.0, 1.0]
     max_steps: 24
     expected_score_range: [0.85, 0.95]
+    grader:
+      endpoint: /grader
+      method: POST
+      payload:
+        task: easy
 
   - id: medium
     name: Medium Negotiation Task
@@ -32,6 +37,11 @@ tasks:
     reward_range: [-1.0, 1.0]
     max_steps: 24
     expected_score_range: [0.65, 0.82]
+    grader:
+      endpoint: /grader
+      method: POST
+      payload:
+        task: medium
 
   - id: hard
     name: Hard Negotiation Task
@@ -42,6 +52,11 @@ tasks:
     reward_range: [-1.0, 1.0]
     max_steps: 24
     expected_score_range: [0.42, 0.68]
+    grader:
+      endpoint: /grader
+      method: POST
+      payload:
+        task: hard
 
 # Observation and Action spaces
 observation_space:
@@ -164,6 +179,28 @@ grading_function:
     3. Final score: rank_score x 0.90 + efficiency_bonus (0.12 if <=10 steps, 0.06 if <=16).
     4. Clamp to [0, 1].
     5. Success threshold: score >= 0.40.
+
+api_endpoints:
+  health:
+    path: /health
+    method: GET
+  reset:
+    path: /reset
+    method: POST
+  step:
+    path: /step
+    method: POST
+  state:
+    path: /state
+    method: GET
+  grader:
+    path: /grader
+    method: POST
+    description: Grade one task (easy/medium/hard) over configurable runs
+  baseline:
+    path: /baseline
+    method: POST
+    description: Run grader for all 3 tasks and return aggregate scores
 
 environment_variables:
   - name: API_BASE_URL

@@ -55,6 +55,19 @@ class FeedbackRequest(BaseModel):
     chosen_over_budget: bool = Field(default=False)
 
 
+class GraderRequest(BaseModel):
+    task: str = Field(default="easy")
+    runs: int = Field(default=3, ge=1, le=20)
+    seed: Optional[int] = None
+    stochastic_vendors: bool = Field(default=True)
+
+
+class BaselineRequest(BaseModel):
+    runs: int = Field(default=3, ge=1, le=20)
+    seed: Optional[int] = None
+    stochastic_vendors: bool = Field(default=True)
+
+
 _ENV: Optional[MyEnvV4Env] = None
 _VENDOR_PREF: Dict[str, Dict[str, float]] = {}
 _LEARN_STATS: Dict[str, Dict[str, float]] = {}
@@ -177,6 +190,87 @@ def _policy_metrics(task: str, stochastic: bool) -> Dict[str, float]:
     }
 
 
+def _normalize_task(task: str) -> str:
+    return task if task in ("easy", "medium", "hard") else "easy"
+
+
+def _heuristic_action(obs: Any) -> MyEnvV4Action:
+    active = [v for v in obs.vendors if v.status == "active"]
+    if not active:
+        return MyEnvV4Action(action_type="finalize", vendor_id=None, reasoning="no active vendors")
+
+    def utility(v: Any) -> float:
+        price_ok = 1.0 if v.quote_price <= obs.budget_per_kg else 0.6
+        return price_ok * 0.40 + v.quality_score * 0.35 + v.reliability_score * 0.25
+
+    best = max(active, key=utility)
+    offer = round(min(obs.expected_price, best.quote_price * 0.97), 2)
+    return MyEnvV4Action(
+        action_type="negotiate",
+        vendor_id=best.vendor_id,
+        offer_price=offer,
+        reasoning=f"heuristic best utility {best.vendor_id}",
+    )
+
+
+async def _run_heuristic_episode(task: str, seed: Optional[int], stochastic_vendors: bool) -> Dict[str, Any]:
+    env = MyEnvV4Env(task=task, seed=seed, stochastic_vendors=stochastic_vendors)
+    obs = await env.reset()
+    steps = 0
+    done = False
+    cumulative_reward = 0.0
+
+    while not done and steps < env.MAX_STEPS:
+        action = _heuristic_action(obs)
+        result = await env.step(action)
+        obs = result.observation
+        done = result.done
+        steps += 1
+        cumulative_reward += float(result.reward.value)
+
+    final_state = env.state()
+    score = float(final_state.get("final_score", 0.0))
+    await env.close()
+    return {
+        "task": task,
+        "steps": steps,
+        "score": round(score, 4),
+        "success": score >= 0.40,
+        "cumulative_reward": round(cumulative_reward, 4),
+        "stochastic_vendors": stochastic_vendors,
+    }
+
+
+async def _grade_task(task: str, runs: int, seed: Optional[int], stochastic_vendors: bool) -> Dict[str, Any]:
+    normalized_task = _normalize_task(task)
+    episodes = []
+    for idx in range(runs):
+        run_seed = (seed if seed is not None else 0) + idx if seed is not None else idx * 42
+        ep = await _run_heuristic_episode(
+            task=normalized_task,
+            seed=run_seed,
+            stochastic_vendors=stochastic_vendors,
+        )
+        episodes.append(ep)
+
+    scores = [float(ep["score"]) for ep in episodes]
+    avg_score = round(sum(scores) / len(scores), 4)
+    best_score = round(max(scores), 4)
+    worst_score = round(min(scores), 4)
+    success_rate = round(sum(1 for ep in episodes if ep["success"]) / len(episodes), 4)
+    return {
+        "task": normalized_task,
+        "runs": runs,
+        "avg_score": avg_score,
+        "best_score": best_score,
+        "worst_score": worst_score,
+        "success_rate": success_rate,
+        "pass_threshold": 0.40,
+        "pass": avg_score >= 0.40,
+        "episodes": episodes,
+    }
+
+
 _load_pref()
 
 
@@ -192,6 +286,8 @@ async def health() -> Dict[str, Any]:
         "name": "vendor-negotiation-env",
         "version": "1.5.0",
         "tasks": ["easy", "medium", "hard"],
+        "grader_endpoint": "/grader",
+        "baseline_endpoint": "/baseline",
     }
 
 
@@ -417,3 +513,98 @@ async def api_state_alias() -> Dict[str, Any]:
 @app.post("/api/feedback")
 async def api_feedback_alias(payload: FeedbackRequest) -> Dict[str, Any]:
     return await feedback(payload)
+
+
+@app.post("/grader")
+async def grader(request: Request) -> Dict[str, Any]:
+    payload: Optional[Dict[str, Any]]
+    try:
+        payload = await request.json()
+        if not isinstance(payload, dict):
+            payload = None
+    except Exception:
+        payload = None
+
+    cfg = GraderRequest.model_validate(payload or {})
+    return await _grade_task(
+        task=cfg.task,
+        runs=cfg.runs,
+        seed=cfg.seed,
+        stochastic_vendors=cfg.stochastic_vendors,
+    )
+
+
+@app.get("/grader")
+async def grader_get(task: str = "easy", runs: int = 3, seed: Optional[int] = None, stochastic_vendors: bool = True) -> Dict[str, Any]:
+    safe_runs = min(max(int(runs), 1), 20)
+    return await _grade_task(task=task, runs=safe_runs, seed=seed, stochastic_vendors=stochastic_vendors)
+
+
+@app.post("/baseline")
+async def baseline(request: Request) -> Dict[str, Any]:
+    payload: Optional[Dict[str, Any]]
+    try:
+        payload = await request.json()
+        if not isinstance(payload, dict):
+            payload = None
+    except Exception:
+        payload = None
+
+    cfg = BaselineRequest.model_validate(payload or {})
+    task_scores: Dict[str, Dict[str, Any]] = {}
+    for task in ("easy", "medium", "hard"):
+        task_scores[task] = await _grade_task(
+            task=task,
+            runs=cfg.runs,
+            seed=cfg.seed,
+            stochastic_vendors=cfg.stochastic_vendors,
+        )
+
+    overall_avg = round(
+        sum(float(task_scores[t]["avg_score"]) for t in ("easy", "medium", "hard")) / 3.0,
+        4,
+    )
+    return {
+        "runs_per_task": cfg.runs,
+        "stochastic_vendors": cfg.stochastic_vendors,
+        "tasks": task_scores,
+        "overall_avg_score": overall_avg,
+        "pass_threshold": 0.40,
+        "pass": overall_avg >= 0.40,
+    }
+
+
+@app.get("/baseline")
+async def baseline_get(runs: int = 3, seed: Optional[int] = None, stochastic_vendors: bool = True) -> Dict[str, Any]:
+    safe_runs = min(max(int(runs), 1), 20)
+    task_scores: Dict[str, Dict[str, Any]] = {}
+    for task in ("easy", "medium", "hard"):
+        task_scores[task] = await _grade_task(
+            task=task,
+            runs=safe_runs,
+            seed=seed,
+            stochastic_vendors=stochastic_vendors,
+        )
+
+    overall_avg = round(
+        sum(float(task_scores[t]["avg_score"]) for t in ("easy", "medium", "hard")) / 3.0,
+        4,
+    )
+    return {
+        "runs_per_task": safe_runs,
+        "stochastic_vendors": stochastic_vendors,
+        "tasks": task_scores,
+        "overall_avg_score": overall_avg,
+        "pass_threshold": 0.40,
+        "pass": overall_avg >= 0.40,
+    }
+
+
+@app.post("/api/grader")
+async def api_grader_alias(request: Request) -> Dict[str, Any]:
+    return await grader(request)
+
+
+@app.post("/api/baseline")
+async def api_baseline_alias(request: Request) -> Dict[str, Any]:
+    return await baseline(request)
