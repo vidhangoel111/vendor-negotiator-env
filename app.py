@@ -271,6 +271,38 @@ async def _grade_task(task: str, runs: int, seed: Optional[int], stochastic_vend
     }
 
 
+def _task_catalog() -> list[Dict[str, Any]]:
+    return [
+        {
+            "id": "easy",
+            "name": "Easy Negotiation Task",
+            "difficulty": "easy",
+            "max_steps": 24,
+            "grader": True,
+            "grader_endpoint": "/grader",
+            "grader_payload": {"task": "easy"},
+        },
+        {
+            "id": "medium",
+            "name": "Medium Negotiation Task",
+            "difficulty": "medium",
+            "max_steps": 24,
+            "grader": True,
+            "grader_endpoint": "/grader",
+            "grader_payload": {"task": "medium"},
+        },
+        {
+            "id": "hard",
+            "name": "Hard Negotiation Task",
+            "difficulty": "hard",
+            "max_steps": 24,
+            "grader": True,
+            "grader_endpoint": "/grader",
+            "grader_payload": {"task": "hard"},
+        },
+    ]
+
+
 _load_pref()
 
 
@@ -286,8 +318,29 @@ async def health() -> Dict[str, Any]:
         "name": "vendor-negotiation-env",
         "version": "1.5.0",
         "tasks": ["easy", "medium", "hard"],
+        "tasks_endpoint": "/tasks",
         "grader_endpoint": "/grader",
         "baseline_endpoint": "/baseline",
+    }
+
+
+@app.get("/tasks")
+async def tasks() -> Dict[str, Any]:
+    return {"tasks": _task_catalog()}
+
+
+@app.get("/validate")
+async def validate() -> Dict[str, Any]:
+    catalog = _task_catalog()
+    checks = {
+        "min_3_tasks": len(catalog) >= 3,
+        "tasks_have_graders": all(bool(t.get("grader")) for t in catalog),
+        "grader_endpoint_present": all(bool(t.get("grader_endpoint")) for t in catalog),
+    }
+    return {
+        "valid": all(checks.values()),
+        "checks": checks,
+        "task_count": len(catalog),
     }
 
 
@@ -513,6 +566,11 @@ async def api_state_alias() -> Dict[str, Any]:
 @app.post("/api/feedback")
 async def api_feedback_alias(payload: FeedbackRequest) -> Dict[str, Any]:
     return await feedback(payload)
+
+
+@app.get("/api/tasks")
+async def api_tasks_alias() -> Dict[str, Any]:
+    return await tasks()
 
 
 @app.post("/grader")

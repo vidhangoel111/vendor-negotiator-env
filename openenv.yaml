@@ -27,6 +27,12 @@ tasks:
       method: POST
       payload:
         task: easy
+    graders:
+      - type: endpoint
+        endpoint: /grader
+        method: POST
+        payload:
+          task: easy
 
   - id: medium
     name: Medium Negotiation Task
@@ -42,6 +48,12 @@ tasks:
       method: POST
       payload:
         task: medium
+    graders:
+      - type: endpoint
+        endpoint: /grader
+        method: POST
+        payload:
+          task: medium
 
   - id: hard
     name: Hard Negotiation Task
@@ -57,6 +69,12 @@ tasks:
       method: POST
       payload:
         task: hard
+    graders:
+      - type: endpoint
+        endpoint: /grader
+        method: POST
+        payload:
+          task: hard
 
 # Observation and Action spaces
 observation_space:
@@ -201,6 +219,10 @@ api_endpoints:
     path: /baseline
     method: POST
     description: Run grader for all 3 tasks and return aggregate scores
+  tasks:
+    path: /tasks
+    method: GET
+    description: Task registry with grader metadata for validator discovery
 
 environment_variables:
   - name: API_BASE_URL
