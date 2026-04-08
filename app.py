@@ -817,8 +817,13 @@ async def baseline_get(runs: int = 3, seed: Optional[int] = None, stochastic_ven
 
 @app.post("/grade/easy")
 async def grade_easy(request: Request):
-    payload = await request.json() if request else {}
-    cfg = GraderRequest.model_validate(payload or {})
+    try:
+        payload = await request.json()
+        if not isinstance(payload, dict):
+            payload = {}
+    except Exception:
+        payload = {}
+    cfg = GraderRequest.model_validate(payload)
     return await _grade_task(
         task="easy",
         runs=cfg.runs,
@@ -829,8 +834,13 @@ async def grade_easy(request: Request):
 
 @app.post("/grade/medium")
 async def grade_medium(request: Request):
-    payload = await request.json() if request else {}
-    cfg = GraderRequest.model_validate(payload or {})
+    try:
+        payload = await request.json()
+        if not isinstance(payload, dict):
+            payload = {}
+    except Exception:
+        payload = {}
+    cfg = GraderRequest.model_validate(payload)
     return await _grade_task(
         task="medium",
         runs=cfg.runs,
@@ -841,8 +851,13 @@ async def grade_medium(request: Request):
 
 @app.post("/grade/hard")
 async def grade_hard(request: Request):
-    payload = await request.json() if request else {}
-    cfg = GraderRequest.model_validate(payload or {})
+    try:
+        payload = await request.json()
+        if not isinstance(payload, dict):
+            payload = {}
+    except Exception:
+        payload = {}
+    cfg = GraderRequest.model_validate(payload)
     return await _grade_task(
         task="hard",
         runs=cfg.runs,
