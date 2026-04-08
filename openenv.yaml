@@ -26,6 +26,11 @@ tasks:
     grader: true
     grader_id: easy
     grader_endpoint: /grade/easy
+    graders:
+      - id: easy_grader
+        type: endpoint
+        method: POST
+        endpoint: /grade/easy
     grading_function:
       type: endpoint
       endpoint: /grade/easy
@@ -45,6 +50,11 @@ tasks:
     grader: true
     grader_id: medium
     grader_endpoint: /grade/medium
+    graders:
+      - id: medium_grader
+        type: endpoint
+        method: POST
+        endpoint: /grade/medium
     grading_function:
       type: endpoint
       endpoint: /grade/medium
@@ -64,6 +74,11 @@ tasks:
     grader: true
     grader_id: hard
     grader_endpoint: /grade/hard
+    graders:
+      - id: hard_grader
+        type: endpoint
+        method: POST
+        endpoint: /grade/hard
     grading_function:
       type: endpoint
       endpoint: /grade/hard
