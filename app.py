@@ -367,13 +367,13 @@ async def health() -> Dict[str, Any]:
 
 
 @app.get("/tasks")
-async def tasks() -> list[Dict[str, Any]]:
+async def get_tasks(): -> list[Dict[str, Any]]:
     return _task_catalog()
 
 
 
-@app.get("/graders")
-def get_graders():
+@app.get("/api/graders")
+async def api_graders_alias():
     return [
         {
             "id": "easy",
@@ -408,7 +408,7 @@ async def validate() -> Dict[str, Any]:
         "min_3_tasks": len(catalog) >= 3,
         "tasks_have_graders": all_with_graders,
         "all_tasks_have_graders": all_with_graders,
-        "grader_endpoint_present": all(bool(t.get("grader_endpoint")) for t in catalog),
+        "grader_endpoint_present": all(bool(t.get("grader")) for t in catalog),
         "grader_registry_valid": has_required_graders(),
     }
     return {
@@ -643,13 +643,8 @@ async def api_feedback_alias(payload: FeedbackRequest) -> Dict[str, Any]:
 
 
 @app.get("/api/tasks")
-async def api_tasks_alias() -> Dict[str, Any]:
-    return await tasks()
-
-
-@app.get("/api/graders")
-async def api_graders_alias() -> Dict[str, Any]:
-    return await graders()
+async def api_tasks_alias():
+    return _task_catalog()
 
 
 @app.post("/grader")
@@ -789,30 +784,40 @@ async def baseline_get(runs: int = 3, seed: Optional[int] = None, stochastic_ven
     }
 
 
-@app.post("/api/grader")
-async def api_grader_alias(request: Request) -> Dict[str, Any]:
-    return await grader(request)
+@app.post("/grade/easy")
+async def grade_easy(request: Request):
+    payload = await request.json() if request else {}
+    cfg = GraderRequest.model_validate(payload or {})
+    return await _grade_task(
+        task="easy",
+        runs=cfg.runs,
+        seed=cfg.seed,
+        stochastic_vendors=cfg.stochastic_vendors,
+    )
 
 
-@app.post("/api/grade")
-async def api_grade_alias(request: Request) -> Dict[str, Any]:
-    return await grade_alias(request)
+@app.post("/grade/medium")
+async def grade_medium(request: Request):
+    payload = await request.json() if request else {}
+    cfg = GraderRequest.model_validate(payload or {})
+    return await _grade_task(
+        task="medium",
+        runs=cfg.runs,
+        seed=cfg.seed,
+        stochastic_vendors=cfg.stochastic_vendors,
+    )
 
 
-@app.post("/api/grader/{task_id}")
-async def api_grader_by_task_alias(task_id: str, request: Request) -> Dict[str, Any]:
-    return await grader_by_task(task_id, request)
-
-
-@app.post("/api/grade/{task_id}")
-async def api_grade_by_task_alias(task_id: str, request: Request) -> Dict[str, Any]:
-    return await grade_by_task_alias(task_id, request)
-
-
-@app.get("/api/grade/{task_id}")
-async def api_grade_by_task_get_alias(task_id: str, runs: int = 3, seed: Optional[int] = None, stochastic_vendors: bool = True) -> Dict[str, Any]:
-    return await grade_by_task_get(task_id, runs=runs, seed=seed, stochastic_vendors=stochastic_vendors)
-
+@app.post("/grade/hard")
+async def grade_hard(request: Request):
+    payload = await request.json() if request else {}
+    cfg = GraderRequest.model_validate(payload or {})
+    return await _grade_task(
+        task="hard",
+        runs=cfg.runs,
+        seed=cfg.seed,
+        stochastic_vendors=cfg.stochastic_vendors,
+    )
 
 @app.post("/api/baseline")
 async def api_baseline_alias(request: Request) -> Dict[str, Any]:
