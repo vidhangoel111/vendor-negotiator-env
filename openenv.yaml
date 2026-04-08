@@ -14,6 +14,7 @@ openenv_version: 1.0
 # Tasks
 tasks:
   - id: easy
+    task_id: easy
     name: Easy Negotiation Task
     description: |
       Most vendors are active. Prices are near the expected price. 
@@ -23,6 +24,7 @@ tasks:
     max_steps: 24
     expected_score_range: [0.85, 0.95]
     grader:
+      type: endpoint
       endpoint: /grader/easy
       method: POST
       payload:
@@ -39,6 +41,7 @@ tasks:
       success_threshold: 0.40
 
   - id: medium
+    task_id: medium
     name: Medium Negotiation Task
     description: |
       Several vendors deny negotiation. Mix of cheap-slow and fast-expensive options.
@@ -48,6 +51,7 @@ tasks:
     max_steps: 24
     expected_score_range: [0.65, 0.82]
     grader:
+      type: endpoint
       endpoint: /grader/medium
       method: POST
       payload:
@@ -64,6 +68,7 @@ tasks:
       success_threshold: 0.40
 
   - id: hard
+    task_id: hard
     name: Hard Negotiation Task
     description: |
       Most vendors deny. All quotes exceed budget. Quality and cost severely conflict.
@@ -73,6 +78,7 @@ tasks:
     max_steps: 24
     expected_score_range: [0.42, 0.68]
     grader:
+      type: endpoint
       endpoint: /grader/hard
       method: POST
       payload:
@@ -241,18 +247,34 @@ api_endpoints:
     path: /grader
     method: POST
     description: Grade one task (easy/medium/hard) over configurable runs
+  grade:
+    path: /grade
+    method: POST
+    description: Alias for /grader
   grader_easy:
     path: /grader/easy
     method: POST
     description: Dedicated grader endpoint for easy task
+  grade_easy:
+    path: /grade/easy
+    method: POST
+    description: Alias for easy task grader
   grader_medium:
     path: /grader/medium
     method: POST
     description: Dedicated grader endpoint for medium task
+  grade_medium:
+    path: /grade/medium
+    method: POST
+    description: Alias for medium task grader
   grader_hard:
     path: /grader/hard
     method: POST
     description: Dedicated grader endpoint for hard task
+  grade_hard:
+    path: /grade/hard
+    method: POST
+    description: Alias for hard task grader
   baseline:
     path: /baseline
     method: POST
@@ -261,6 +283,10 @@ api_endpoints:
     path: /tasks
     method: GET
     description: Task registry with grader metadata for validator discovery
+  graders:
+    path: /graders
+    method: GET
+    description: Explicit list of grader endpoints mapped to task IDs
 
 environment_variables:
   - name: API_BASE_URL

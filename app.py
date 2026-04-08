@@ -272,31 +272,46 @@ async def _grade_task(task: str, runs: int, seed: Optional[int], stochastic_vend
 
 
 def _task_catalog() -> list[Dict[str, Any]]:
+    easy_grader = {"type": "endpoint", "method": "POST", "endpoint": "/grader/easy", "payload": {"task": "easy"}}
+    medium_grader = {"type": "endpoint", "method": "POST", "endpoint": "/grader/medium", "payload": {"task": "medium"}}
+    hard_grader = {"type": "endpoint", "method": "POST", "endpoint": "/grader/hard", "payload": {"task": "hard"}}
     return [
         {
             "id": "easy",
+            "task_id": "easy",
             "name": "Easy Negotiation Task",
             "difficulty": "easy",
             "max_steps": 24,
-            "grader": True,
+            "has_grader": True,
+            "grader": easy_grader,
+            "graders": [easy_grader],
+            "grading_function": easy_grader,
             "grader_endpoint": "/grader/easy",
             "grader_payload": {"task": "easy"},
         },
         {
             "id": "medium",
+            "task_id": "medium",
             "name": "Medium Negotiation Task",
             "difficulty": "medium",
             "max_steps": 24,
-            "grader": True,
+            "has_grader": True,
+            "grader": medium_grader,
+            "graders": [medium_grader],
+            "grading_function": medium_grader,
             "grader_endpoint": "/grader/medium",
             "grader_payload": {"task": "medium"},
         },
         {
             "id": "hard",
+            "task_id": "hard",
             "name": "Hard Negotiation Task",
             "difficulty": "hard",
             "max_steps": 24,
-            "grader": True,
+            "has_grader": True,
+            "grader": hard_grader,
+            "graders": [hard_grader],
+            "grading_function": hard_grader,
             "grader_endpoint": "/grader/hard",
             "grader_payload": {"task": "hard"},
         },
@@ -326,7 +341,26 @@ async def health() -> Dict[str, Any]:
 
 @app.get("/tasks")
 async def tasks() -> Dict[str, Any]:
-    return {"tasks": _task_catalog()}
+    catalog = _task_catalog()
+    return {"tasks": catalog, "count": len(catalog)}
+
+
+@app.get("/graders")
+async def graders() -> Dict[str, Any]:
+    catalog = _task_catalog()
+    out = []
+    for task in catalog:
+        grader = task.get("grader", {})
+        out.append(
+            {
+                "id": f"{task['id']}_grader",
+                "task_id": task["id"],
+                "method": grader.get("method", "POST"),
+                "endpoint": grader.get("endpoint"),
+                "payload": grader.get("payload", {"task": task["id"]}),
+            }
+        )
+    return {"graders": out, "count": len(out)}
 
 
 @app.get("/validate")
@@ -573,6 +607,11 @@ async def api_tasks_alias() -> Dict[str, Any]:
     return await tasks()
 
 
+@app.get("/api/graders")
+async def api_graders_alias() -> Dict[str, Any]:
+    return await graders()
+
+
 @app.post("/grader")
 async def grader(request: Request) -> Dict[str, Any]:
     payload: Optional[Dict[str, Any]]
@@ -590,6 +629,11 @@ async def grader(request: Request) -> Dict[str, Any]:
         seed=cfg.seed,
         stochastic_vendors=cfg.stochastic_vendors,
     )
+
+
+@app.post("/grade")
+async def grade_alias(request: Request) -> Dict[str, Any]:
+    return await grader(request)
 
 
 @app.get("/grader")
@@ -616,6 +660,11 @@ async def grader_by_task(task_id: str, request: Request) -> Dict[str, Any]:
         seed=cfg.seed,
         stochastic_vendors=cfg.stochastic_vendors,
     )
+
+
+@app.post("/grade/{task_id}")
+async def grade_by_task_alias(task_id: str, request: Request) -> Dict[str, Any]:
+    return await grader_by_task(task_id, request)
 
 
 @app.get("/grader/{task_id}")
@@ -694,9 +743,19 @@ async def api_grader_alias(request: Request) -> Dict[str, Any]:
     return await grader(request)
 
 
+@app.post("/api/grade")
+async def api_grade_alias(request: Request) -> Dict[str, Any]:
+    return await grade_alias(request)
+
+
 @app.post("/api/grader/{task_id}")
 async def api_grader_by_task_alias(task_id: str, request: Request) -> Dict[str, Any]:
     return await grader_by_task(task_id, request)
+
+
+@app.post("/api/grade/{task_id}")
+async def api_grade_by_task_alias(task_id: str, request: Request) -> Dict[str, Any]:
+    return await grade_by_task_alias(task_id, request)
 
 
 @app.post("/api/baseline")

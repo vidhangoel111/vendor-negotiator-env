@@ -1,5 +1,5 @@
-"""
-inference.py — VendorOS OpenEnv Inference Runner
+﻿"""
+inference.py â€” VendorOS OpenEnv Inference Runner
 Runs a full episode for each task and logs in the exact
 [START] / [STEP] / [END] format required by the hackathon.
 
@@ -8,9 +8,11 @@ Usage:
     MY_ENV_V4_TASK=hard python inference.py
 
 Environment variables:
-    MY_ENV_V4_TASK          easy | medium | hard  (default: easy)
+    MY_ENV_V4_TASK          easy | medium | hard | all (default: all)
     API_BASE_URL            LLM base URL          (default: HF router)
-    OPENAI_API_KEY / HF_TOKEN  LLM key            (optional — falls back to heuristic)
+    HF_TOKEN                LLM key               (optional)
+    OPENAI_API_KEY          LLM key               (optional)
+    LOCAL_IMAGE_NAME        optional for from_docker_image() integration
     MODEL_NAME              LLM model id          (default: Qwen/Qwen2.5-72B-Instruct)
     MY_ENV_V4_MAX_STEPS     max steps per episode (default: 20)
 """
@@ -26,12 +28,15 @@ from typing import Any, Dict, List, Optional
 from my_env_v4 import MyEnvV4Action, MyEnvV4Env, VendorNegotiationObservation
 from rl_policy import QLearningPolicy
 
-# ── Config from env ──────────────────────────────────────────────────────────
+# â”€â”€ Config from env â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
-API_KEY = os.getenv("OPENAI_API_KEY") or os.getenv("HF_TOKEN") or os.getenv("API_KEY")
 API_BASE_URL = os.getenv("API_BASE_URL", "https://router.huggingface.co/v1")
 MODEL_NAME = os.getenv("MODEL_NAME", "Qwen/Qwen2.5-72B-Instruct")
-TASK_NAME = os.getenv("MY_ENV_V4_TASK", "easy")
+HF_TOKEN = os.getenv("HF_TOKEN")
+LOCAL_IMAGE_NAME = os.getenv("LOCAL_IMAGE_NAME")
+OPENAI_API_KEY = os.getenv("OPENAI_API_KEY")
+API_KEY = OPENAI_API_KEY or HF_TOKEN
+TASK_NAME = os.getenv("MY_ENV_V4_TASK", "all")
 BENCHMARK = os.getenv("MY_ENV_V4_BENCHMARK", "vendor_negotiation_v4")
 MAX_STEPS = int(os.getenv("MY_ENV_V4_MAX_STEPS", "20"))
 TEMPERATURE = float(os.getenv("MY_ENV_V4_TEMPERATURE", "0.3"))
@@ -41,12 +46,12 @@ SUCCESS_SCORE_THRESHOLD = 0.40
 RL_POLICY_PATH = os.getenv("RL_POLICY_PATH", "q_policy.json")
 RL_TRAIN_EPISODES = int(os.getenv("RL_TRAIN_EPISODES", "0"))
 
-# ── System prompt for LLM agent ──────────────────────────────────────────────
+# â”€â”€ System prompt for LLM agent â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
 SYSTEM_PROMPT = textwrap.dedent("""
 You are an autonomous procurement agent negotiating with vendors to purchase items.
 
-Return ONLY valid JSON — no markdown, no explanation:
+Return ONLY valid JSON â€” no markdown, no explanation:
 {
   "action_type": "negotiate" | "accept" | "skip" | "finalize",
   "vendor_id": "<V1..V10 or null>",
@@ -63,7 +68,7 @@ Strategy:
 """).strip()
 
 
-# ── Logging (exact hackathon format) ────────────────────────────────────────
+# â”€â”€ Logging (exact hackathon format) â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
 def log_start(task: str, env: str, model: str) -> None:
     print(f"[START] task={task} env={env} model={model}", flush=True)
@@ -88,7 +93,7 @@ def log_end(success: bool, steps: int, score: float, rewards: List[float]) -> No
     )
 
 
-# ── Prompt builder ───────────────────────────────────────────────────────────
+# â”€â”€ Prompt builder â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
 def fmt_vendor(v) -> str:
     current_price = v.accepted_price if v.accepted_price is not None else v.quote_price
@@ -124,7 +129,7 @@ def build_user_prompt(obs: VendorNegotiationObservation, step: int) -> str:
     """).strip()
 
 
-# ── Action parser ────────────────────────────────────────────────────────────
+# â”€â”€ Action parser â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
 def parse_action(raw: str) -> Optional[MyEnvV4Action]:
     cleaned = raw.strip()
@@ -147,7 +152,7 @@ def parse_action(raw: str) -> Optional[MyEnvV4Action]:
         return None
 
 
-# ── Heuristic fallback (no LLM needed) ───────────────────────────────────────
+# â”€â”€ Heuristic fallback (no LLM needed) â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
 def heuristic_action(obs: VendorNegotiationObservation) -> MyEnvV4Action:
     active = [v for v in obs.vendors if v.status == "active"]
@@ -170,7 +175,7 @@ def heuristic_action(obs: VendorNegotiationObservation) -> MyEnvV4Action:
     )
 
 
-# ── LLM agent ────────────────────────────────────────────────────────────────
+# â”€â”€ LLM agent â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
 def get_agent_action(client: Any, obs: VendorNegotiationObservation, step: int, policy: Optional[QLearningPolicy]) -> MyEnvV4Action:
     if client is None:
@@ -198,7 +203,7 @@ def get_agent_action(client: Any, obs: VendorNegotiationObservation, step: int, 
         return policy.select_action(obs, training=True)[0] if policy else heuristic_action(obs)
 
 
-# ── Episode runner ────────────────────────────────────────────────────────────
+# â”€â”€ Episode runner â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
 async def run_episode(task: str, client: Any, policy: Optional[QLearningPolicy] = None, training: bool = True) -> None:
     env = MyEnvV4Env(task=task, stochastic_vendors=STOCHASTIC_VENDORS)
@@ -275,10 +280,10 @@ async def run_episode(task: str, client: Any, policy: Optional[QLearningPolicy] 
     log_end(success=success, steps=steps_taken, score=score, rewards=rewards)
 
 
-# ── Main ──────────────────────────────────────────────────────────────────────
+# â”€â”€ Main â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
 async def main() -> None:
-    # Try to initialise LLM client — fall back to heuristic if no key
+    # Try to initialise LLM client â€” fall back to heuristic if no key
     client = None
     if API_KEY:
         try:
@@ -311,3 +316,4 @@ async def main() -> None:
 
 if __name__ == "__main__":
     asyncio.run(main())
+
