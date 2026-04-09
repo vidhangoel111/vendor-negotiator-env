@@ -1177,6 +1177,7 @@ def _task_catalog() -> list[Dict[str, Any]]:
                 "id": tid,
                 "method": "POST",
                 "endpoint": f"/grade/{tid}",
+                "url": f"/grade/{tid}",
                 "success_threshold": 0.4,
             }
         })
@@ -1192,6 +1193,7 @@ def _grader_catalog() -> list[Dict[str, Any]]:
             "type": "endpoint",
             "method": "POST",
             "endpoint": f"/grade/{tid}",
+            "url": f"/grade/{tid}",
             "success_threshold": PASS_THRESHOLD,
         }
         for tid in task_ids()
@@ -1512,6 +1514,57 @@ async def grader_get(task: str = "easy", runs: int = 3, seed: Optional[int] = No
     return await _grade_task(task=task, runs=safe_runs, seed=seed, stochastic_vendors=stochastic_vendors)
 
 
+@app.post("/grade/easy")
+async def grade_easy(request: Request):
+    try:
+        payload = await request.json()
+        if not isinstance(payload, dict):
+            payload = {}
+    except Exception:
+        payload = {}
+    cfg = GraderRequest.model_validate(payload)
+    return await _grade_task(
+        task="easy",
+        runs=cfg.runs,
+        seed=cfg.seed,
+        stochastic_vendors=cfg.stochastic_vendors,
+    )
+
+
+@app.post("/grade/medium")
+async def grade_medium(request: Request):
+    try:
+        payload = await request.json()
+        if not isinstance(payload, dict):
+            payload = {}
+    except Exception:
+        payload = {}
+    cfg = GraderRequest.model_validate(payload)
+    return await _grade_task(
+        task="medium",
+        runs=cfg.runs,
+        seed=cfg.seed,
+        stochastic_vendors=cfg.stochastic_vendors,
+    )
+
+
+@app.post("/grade/hard")
+async def grade_hard(request: Request):
+    try:
+        payload = await request.json()
+        if not isinstance(payload, dict):
+            payload = {}
+    except Exception:
+        payload = {}
+    cfg = GraderRequest.model_validate(payload)
+    return await _grade_task(
+        task="hard",
+        runs=cfg.runs,
+        seed=cfg.seed,
+        stochastic_vendors=cfg.stochastic_vendors,
+    )
+
+
 @app.post("/grader/{task_id}")
 async def grader_by_task(task_id: str, request: Request) -> Dict[str, Any]:
     payload: Optional[Dict[str, Any]]
@@ -1618,56 +1671,6 @@ async def baseline_get(runs: int = 3, seed: Optional[int] = None, stochastic_ven
         "pass": overall_avg >= PASS_THRESHOLD,
     }
 
-
-@app.post("/grade/easy")
-async def grade_easy(request: Request):
-    try:
-        payload = await request.json()
-        if not isinstance(payload, dict):
-            payload = {}
-    except Exception:
-        payload = {}
-    cfg = GraderRequest.model_validate(payload)
-    return await _grade_task(
-        task="easy",
-        runs=cfg.runs,
-        seed=cfg.seed,
-        stochastic_vendors=cfg.stochastic_vendors,
-    )
-
-
-@app.post("/grade/medium")
-async def grade_medium(request: Request):
-    try:
-        payload = await request.json()
-        if not isinstance(payload, dict):
-            payload = {}
-    except Exception:
-        payload = {}
-    cfg = GraderRequest.model_validate(payload)
-    return await _grade_task(
-        task="medium",
-        runs=cfg.runs,
-        seed=cfg.seed,
-        stochastic_vendors=cfg.stochastic_vendors,
-    )
-
-
-@app.post("/grade/hard")
-async def grade_hard(request: Request):
-    try:
-        payload = await request.json()
-        if not isinstance(payload, dict):
-            payload = {}
-    except Exception:
-        payload = {}
-    cfg = GraderRequest.model_validate(payload)
-    return await _grade_task(
-        task="hard",
-        runs=cfg.runs,
-        seed=cfg.seed,
-        stochastic_vendors=cfg.stochastic_vendors,
-    )
 
 @app.post("/api/baseline")
 async def api_baseline_alias(request: Request) -> Dict[str, Any]:
