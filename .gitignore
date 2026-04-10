@@ -14,3 +14,4 @@ __pycache__/
 *.pyc
 q_policy.json
 vendor_feedback_q.json
+README.md
