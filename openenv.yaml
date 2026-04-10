@@ -24,7 +24,7 @@ tasks:
     max_steps: 24
     expected_score_range: [0.85, 0.95]
     grader: true
-    grader_id: easy
+    grader_id: easy_grader
     grader_endpoint: /grade/easy
     graders:
       - id: easy_grader
@@ -48,7 +48,7 @@ tasks:
     max_steps: 24
     expected_score_range: [0.65, 0.82]
     grader: true
-    grader_id: medium
+    grader_id: medium_grader
     grader_endpoint: /grade/medium
     graders:
       - id: medium_grader
@@ -72,7 +72,7 @@ tasks:
     max_steps: 24
     expected_score_range: [0.42, 0.68]
     grader: true
-    grader_id: hard
+    grader_id: hard_grader
     grader_endpoint: /grade/hard
     graders:
       - id: hard_grader
