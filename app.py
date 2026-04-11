@@ -619,18 +619,28 @@ async def feedback(payload: FeedbackRequest) -> Dict[str, Any]:
     if payload.chosen_over_budget:
         chosen_signal -= 0.08
 
-    agent_q = _update_pref(task, payload.agent_vendor_id, agent_signal, alpha=0.28)
-    chosen_q = _update_pref(task, payload.chosen_vendor_id, chosen_signal, alpha=0.28)
+    # Only update preferences for valid (non-None) vendor IDs
+    agent_q = None
+    if payload.agent_vendor_id and payload.agent_vendor_id != "None":
+        agent_q = _update_pref(task, payload.agent_vendor_id, agent_signal, alpha=0.28)
+    
+    chosen_q = None
+    if payload.chosen_vendor_id and payload.chosen_vendor_id != "None":
+        chosen_q = _update_pref(task, payload.chosen_vendor_id, chosen_signal, alpha=0.28)
+
+    # Always apply signals to update reputation stats
     _apply_signal(task, agent_signal)
     _apply_signal(task, chosen_signal)
     _save_pref()
 
     metrics = _policy_metrics(task, stochastic=False)
+    final_reputation = _task_reputation(task)
+    
     return {
         "ok": True,
         "task": task,
         "same_pick": same_pick,
-        "task_reputation": _task_reputation(task),
+        "task_reputation": final_reputation,
         "policy_metrics": metrics,
         "applied": {
             "agent_vendor": payload.agent_vendor_id,
