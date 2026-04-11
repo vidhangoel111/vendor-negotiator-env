@@ -307,6 +307,16 @@ async function backendAgentStep() {
   const reward = Number(out.reward || 0);
   syncFromObservation(out.observation, reward, Boolean(out.done));
   applyPolicyMetrics(out.policy_metrics);
+  
+  // Extract agent's vendor recommendation from action string
+  // Action format: "negotiate(vendor=V1,offer=160.5)" or similar
+  if (out.action && typeof out.action === "string") {
+    const vendorMatch = out.action.match(/vendor=([a-zA-Z0-9_]+)/);
+    if (vendorMatch && vendorMatch[1]) {
+      G.agentPickVendor = vendorMatch[1];
+    }
+  }
+  
   appendPolicyTrace(out.action || "agent-step", out.observation, reward);
   addAF("c-sy", `ACTION ${out.action || "agent-step"} | reward=${reward.toFixed(3)} | done=${String(Boolean(out.done))} | R+ ${G.agent.rewardTotal.toFixed(3)} / P- ${G.agent.penaltyTotal.toFixed(3)}`);
 }
@@ -551,18 +561,20 @@ function renderPickList() {
 
   // Strict top-3 recommendation guard for human override UX.
   const top = closed.slice(0, 3);
-  const best = top[0];
-  G.agentPickVendor = best ? best.id : null;
+  // Don't override G.agentPickVendor here - it's set by backendAgentStep() from the actual agent action
+  // Instead, check which vendor matches the agent's actual pick
+  
   document.getElementById("pick-list").innerHTML = top
     .map((v, i) => {
-      const isBest = i === 0;
+      const isAgentPick = v.id === G.agentPickVendor;
       const overBudget = Number(v.accepted) > G.bud;
-      const basePen = isBest ? 0 : Number((0.04 + i * 0.03).toFixed(2));
+      // Agent pick gets 0 penalty, others get penalized based on rank
+      const basePen = isAgentPick ? 0 : Number((0.04 + i * 0.03).toFixed(2));
       const pen = Number((basePen + (overBudget ? 0.03 : 0)).toFixed(2));
-      return `<div class="vprow ${isBest ? "vbest" : "vsub"}" onclick="pickV('${v.id}',${pen},${isBest})">
+      return `<div class="vprow ${isAgentPick ? "vbest" : "vsub"}" onclick="pickV('${v.id}',${pen},${isAgentPick})">
       <div><span style="font-weight:500;font-size:12px">${v.id} - ${v.name}</span><span style="font-size:10px;color:var(--color-text-secondary);margin-left:7px">₹${v.accepted} · ${v.del}d · ${(v.sc || 0).toFixed(3)}${overBudget ? " · over budget" : ""}</span></div>
       <div>${
-        isBest
+        isAgentPick
           ? '<span class="pill pk">agent pick</span>'
           : `<span style="font-size:10px;color:#D85A30;font-weight:500">-${pen.toFixed(2)} rating</span>`
       }</div>
@@ -618,6 +630,17 @@ async function pickV(vid, pen, isBest) {
 
 function confirmBest() {
   if (G.confirmed) return;
+  
+  // If agent made a recommendation, respect it
+  if (G.agentPickVendor) {
+    const agentPick = G.vendors.find((v) => v.id === G.agentPickVendor && v.deal);
+    if (agentPick) {
+      pickV(agentPick.id, 0, true);
+      return;
+    }
+  }
+  
+  // Fallback: pick best in-budget vendor if agent's pick is not available
   const best = G.vendors
     .filter((v) => v.deal && Number(v.accepted) <= G.bud)
     .sort((a, b) => Number(b.sc || 0) - Number(a.sc || 0))[0];
