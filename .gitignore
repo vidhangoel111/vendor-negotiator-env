@@ -12,3 +12,5 @@ openai_key*
 q_policy.json
 vendor_feedback_q.json
 README2.md
+
+.code-review-graph/
