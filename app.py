@@ -374,6 +374,11 @@ def _grader_catalog() -> list[Dict[str, Any]]:
 
 _load_pref()
 
+# Initialize stats for all tasks if not present
+for task_id in ("easy", "medium", "hard"):
+    if task_id not in _LEARN_STATS:
+        _LEARN_STATS[task_id] = _blank_stats()
+
 
 @app.get("/")
 async def root() -> RedirectResponse:
@@ -503,7 +508,17 @@ async def state() -> Dict[str, Any]:
 async def agent_step(payload: ResetRequest) -> Dict[str, Any]:
     global _ENV
 
-    if _ENV is None or _ENV.task != payload.task:
+    # Check if we need to reset: task changed OR any critical parameters changed
+    needs_reset = (
+        _ENV is None
+        or _ENV.task != payload.task
+        or _ENV.item != payload.item
+        or _ENV.expected_price != payload.expected_price
+        or _ENV.quantity_kg != payload.quantity_kg
+        or _ENV.stochastic_vendors != payload.stochastic_vendors
+    )
+
+    if needs_reset:
         if _ENV is not None:
             await _ENV.close()
         _ENV = MyEnvV4Env(

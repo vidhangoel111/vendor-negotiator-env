@@ -171,10 +171,8 @@ function syncFromObservation(obs, reward, done) {
   if (typeof reward === "number") {
     G.agent.rewHistory.push(reward);
     if (G.agent.rewHistory.length > 120) G.agent.rewHistory.shift();
-    // EMA-style update keeps reputation visibly responsive.
-    const prev = Number.isFinite(G.agent.r) ? G.agent.r : 0.7;
-    const target = clamp(0.55 + reward * 1.35, 0.1, 1);
-    setAgentReputation(clamp(prev * 0.78 + target * 0.22, 0.1, 1));
+    // Do NOT update reputation here - let backend /feedback endpoint handle reputation updates
+    // via applyPolicyMetrics(). Updating here causes conflicts with backend stats.
   }
 
   const deals = G.vendors.filter((v) => v.deal);
@@ -294,6 +292,11 @@ async function resetEpisode() {
   document.getElementById("conf-area").innerHTML = "";
   document.getElementById("conf-btn").disabled = false;
   document.getElementById("conf-btn").textContent = "Accept agent recommendation";
+  
+  // Re-enable human override button for new episode
+  const overrideBtn = document.getElementById("toggle-human");
+  if (overrideBtn) overrideBtn.disabled = false;
+  
   document.getElementById("tab-results-btn").classList.remove("notify");
   document.getElementById("pause-btn").disabled = true;
   document.getElementById("pause-btn").textContent = "Pause";
@@ -605,6 +608,12 @@ async function pickV(vid, pen, isBest) {
   const total = Number(v.accepted) * G.qty;
   document.getElementById("conf-btn").disabled = true;
   document.getElementById("conf-btn").textContent = "Order placed";
+  // Disable human override button after accept
+  const overrideBtn = document.getElementById("toggle-human");
+  if (overrideBtn) overrideBtn.disabled = true;
+  const humanLoop = document.getElementById("human-loop");
+  if (humanLoop) humanLoop.style.display = "none";
+  
   document.getElementById("conf-area").innerHTML = `<div class="cbanner">
     <div style="font-weight:500;margin-bottom:3px">Order confirmed - ${v.id} (${v.name})</div>
     <div>₹${v.accepted}/kg x ${G.qty.toLocaleString()} kg = <strong>₹${total.toLocaleString()}</strong></div>
