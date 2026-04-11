@@ -610,6 +610,9 @@ async def agent_step(payload: ResetRequest) -> Dict[str, Any]:
 
     return {
         "action": action_str,
+        "action_type": action.action_type,
+        "agent_vendor_id": action.vendor_id,
+        "offer_price": action.offer_price,
         "reward": result.reward.value,
         "done": result.done,
         "policy_metrics": _policy_metrics(obs.task_difficulty, payload.stochastic_vendors),
@@ -621,7 +624,8 @@ async def agent_step(payload: ResetRequest) -> Dict[str, Any]:
 @app.post("/feedback")
 async def feedback(payload: FeedbackRequest) -> Dict[str, Any]:
     task = payload.task if payload.task in ("easy", "medium", "hard") else "easy"
-    same_pick = payload.chosen_vendor_id == payload.agent_vendor_id
+    agent_vendor_id = payload.agent_vendor_id if payload.agent_vendor_id and payload.agent_vendor_id != "None" else payload.chosen_vendor_id
+    same_pick = payload.chosen_vendor_id == agent_vendor_id
 
     if same_pick:
         agent_signal = 0.18
@@ -636,8 +640,8 @@ async def feedback(payload: FeedbackRequest) -> Dict[str, Any]:
 
     # Only update preferences for valid (non-None) vendor IDs
     agent_q = None
-    if payload.agent_vendor_id and payload.agent_vendor_id != "None":
-        agent_q = _update_pref(task, payload.agent_vendor_id, agent_signal, alpha=0.28)
+    if agent_vendor_id:
+        agent_q = _update_pref(task, agent_vendor_id, agent_signal, alpha=0.28)
     
     chosen_q = None
     if payload.chosen_vendor_id and payload.chosen_vendor_id != "None":
@@ -658,7 +662,7 @@ async def feedback(payload: FeedbackRequest) -> Dict[str, Any]:
         "task_reputation": final_reputation,
         "policy_metrics": metrics,
         "applied": {
-            "agent_vendor": payload.agent_vendor_id,
+            "agent_vendor": agent_vendor_id,
             "agent_signal": round(agent_signal, 4),
             "agent_q": agent_q,
             "chosen_vendor": payload.chosen_vendor_id,

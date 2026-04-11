@@ -318,15 +318,9 @@ async function backendAgentStep() {
   const reward = Number(out.reward || 0);
   syncFromObservation(out.observation, reward, Boolean(out.done));
   applyPolicyMetrics(out.policy_metrics);
-  
-  // Extract agent's vendor recommendation from action string
-  // Action format: "negotiate(vendor=V1,offer=160.5)" or similar
-  if (out.action && typeof out.action === "string") {
-    const vendorMatch = out.action.match(/vendor=([a-zA-Z0-9_]+)/);
-    if (vendorMatch && vendorMatch[1]) {
-      G.agentPickVendor = vendorMatch[1];
-      console.log("[AGENT-STEP] Extracted agent vendor:", G.agentPickVendor, "from action:", out.action);
-    }
+  if (typeof out.agent_vendor_id === "string" && out.agent_vendor_id && out.agent_vendor_id !== "None") {
+    G.agentPickVendor = out.agent_vendor_id;
+    console.log("[AGENT-STEP] Agent vendor from backend:", G.agentPickVendor, "action:", out.action);
   }
   
   appendPolicyTrace(out.action || "agent-step", out.observation, reward);
