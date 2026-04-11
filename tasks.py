@@ -36,7 +36,8 @@ TASKS = [
         "description": "Basic negotiation",
         "difficulty": "easy",
         "max_steps": 24,
-        "grader": True
+        "grader": True,
+        "enabled": True,
     },
     {
         "id": "medium",
@@ -44,7 +45,8 @@ TASKS = [
         "description": "Intermediate negotiation",
         "difficulty": "medium",
         "max_steps": 24,
-        "grader": True
+        "grader": True,
+        "enabled": True,
     },
     {
         "id": "hard",
@@ -52,7 +54,8 @@ TASKS = [
         "description": "Complex negotiation",
         "difficulty": "hard",
         "max_steps": 24,
-        "grader": True
+        "grader": True,
+        "enabled": True,
     }
 ]
 

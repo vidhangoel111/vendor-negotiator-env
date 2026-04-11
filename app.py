@@ -325,6 +325,7 @@ def _task_catalog() -> list[Dict[str, Any]]:
         grader_spec = {
             "id": grader_id,
             "task_id": tid,
+            "enabled": True,
             "type": "endpoint",
             "method": "POST",
             "endpoint": f"/grade/{tid}",
@@ -339,6 +340,7 @@ def _task_catalog() -> list[Dict[str, Any]]:
             "description": t.get("description", f"Task {tid}"),
             "difficulty": t.get("difficulty", tid),
             "max_steps": int(t.get("max_steps", 24)),
+            "enabled": bool(t.get("enabled", True)),
             "grader": dict(grader_spec),
             "grader_id": grader_id,
             "grader_endpoint": f"/grade/{tid}",
@@ -360,6 +362,7 @@ def _grader_catalog() -> list[Dict[str, Any]]:
         {
             "id": f"{tid}_grader",
             "task_id": tid,
+            "enabled": True,
             "type": "endpoint",
             "method": "POST",
             "endpoint": f"/grade/{tid}",
