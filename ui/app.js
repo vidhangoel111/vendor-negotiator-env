@@ -567,8 +567,9 @@ function renderPickList() {
 
   // Strict top-3 recommendation guard for human override UX.
   const top = closed.slice(0, 3);
-  // Don't override G.agentPickVendor here - it's set by backendAgentStep() from the actual agent action
-  // Instead, check which vendor matches the agent's actual pick
+  // Canonical recommendation on results page is always rank #1.
+  // This keeps recommendation and ranking consistent for reward/penalty flow.
+  G.agentPickVendor = top[0] ? top[0].id : null;
   
   document.getElementById("pick-list").innerHTML = top
     .map((v, i) => {
