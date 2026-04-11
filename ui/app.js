@@ -99,8 +99,16 @@ function setAgentReputation(v) {
 }
 
 function applyPolicyMetrics(metrics) {
-  if (!metrics) return;
-  if (typeof metrics.task_reputation === "number") setAgentReputation(metrics.task_reputation);
+  if (!metrics) {
+    console.log("[APPLY-METRICS] No metrics provided");
+    return;
+  }
+  console.log("[APPLY-METRICS] Received:", metrics);
+  if (typeof metrics.task_reputation === "number") {
+    const oldR = G.agent.r;
+    setAgentReputation(metrics.task_reputation);
+    console.log("[APPLY-METRICS] Reputation updated:", oldR, "→", G.agent.r);
+  }
   if (typeof metrics.reward_total === "number") G.agent.rewardTotal = Number(metrics.reward_total);
   if (typeof metrics.penalty_total === "number") G.agent.penaltyTotal = Number(metrics.penalty_total);
   if (typeof metrics.net_signal === "number") G.agent.netSignal = Number(metrics.net_signal);
@@ -314,6 +322,7 @@ async function backendAgentStep() {
     const vendorMatch = out.action.match(/vendor=([a-zA-Z0-9_]+)/);
     if (vendorMatch && vendorMatch[1]) {
       G.agentPickVendor = vendorMatch[1];
+      console.log("[AGENT-STEP] Extracted agent vendor:", G.agentPickVendor, "from action:", out.action);
     }
   }
   
@@ -613,15 +622,22 @@ async function pickV(vid, pen, isBest) {
       penalty: Number(pen || 0),
       chosen_over_budget: Number(v.accepted) > G.bud,
     };
+    console.log("[FEEDBACK] Sending payload:", payload);
     const fb = await postJsonWithFallback("/feedback", "/api/feedback", payload);
+    console.log("[FEEDBACK] Received response:", fb);
     if (fb && fb.ok) {
+      console.log("[FEEDBACK] Metrics before:", { r: G.agent.r, updates: G.agent.updates });
       applyPolicyMetrics(fb.policy_metrics);
+      console.log("[FEEDBACK] Metrics after:", { r: G.agent.r, updates: G.agent.updates, metrics: fb.policy_metrics });
       addAF(
         "c-if",
-        `Feedback learned | agent=${payload.agent_vendor_id} -> ${fb.applied.agent_q.toFixed(3)} | chosen=${payload.chosen_vendor_id} -> ${fb.applied.chosen_q.toFixed(3)} | R+ ${G.agent.rewardTotal.toFixed(3)} / P- ${G.agent.penaltyTotal.toFixed(3)}`
+        `Feedback learned | agent=${payload.agent_vendor_id} -> ${fb.applied.agent_q !== null ? fb.applied.agent_q.toFixed(3) : 'N/A'} | chosen=${payload.chosen_vendor_id} -> ${fb.applied.chosen_q !== null ? fb.applied.chosen_q.toFixed(3) : 'N/A'} | R+ ${G.agent.rewardTotal.toFixed(3)} / P- ${G.agent.penaltyTotal.toFixed(3)}`
       );
+    } else {
+      console.error("[FEEDBACK] Response not OK:", fb);
     }
   } catch (err) {
+    console.error("[FEEDBACK] Error:", err);
     addAF("c-fl", `Feedback save failed: ${err.message}`);
   }
   updAgentPanel();
@@ -635,16 +651,25 @@ function confirmBest() {
   if (G.agentPickVendor) {
     const agentPick = G.vendors.find((v) => v.id === G.agentPickVendor && v.deal);
     if (agentPick) {
+      console.log("[CONFIRM-BEST] Using agent recommendation:", G.agentPickVendor);
       pickV(agentPick.id, 0, true);
       return;
+    } else {
+      console.log("[CONFIRM-BEST] Agent vendor not found in deals:", G.agentPickVendor);
     }
+  } else {
+    console.log("[CONFIRM-BEST] No agent vendor set (G.agentPickVendor is null/empty)");
   }
   
   // Fallback: pick best in-budget vendor if agent's pick is not available
   const best = G.vendors
     .filter((v) => v.deal && Number(v.accepted) <= G.bud)
     .sort((a, b) => Number(b.sc || 0) - Number(a.sc || 0))[0];
-  if (!best) return;
+  if (!best) {
+    console.log("[CONFIRM-BEST] No in-budget vendors available");
+    return;
+  }
+  console.log("[CONFIRM-BEST] Falling back to best in-budget vendor:", best.id);
   pickV(best.id, 0, true);
 }
 
